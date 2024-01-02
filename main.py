@@ -16,7 +16,7 @@ class User:
 def start(message):
     connection = sqlite3.connect('bd.sql')
     cur = connection.cursor()
-    cur.execute('CREATE TABLE IF NOT EXISTS users(name, date_of_bd)')
+    cur.execute('CREATE TABLE IF NOT EXISTS users(name varchar(100), date_of_bd date)')
     connection.commit()
     cur.close()
     connection.close()
@@ -38,14 +38,14 @@ def callback_message(callback):
             global name
             name = message.text.strip()
             user = User(name)
-            msg = bot.reply_to(message, 'Приятно познакомиться, ' + user.name)
             connection = sqlite3.connect('bd.sql')
             cur = connection.cursor()
-            cur.execute(f'INSERT INTO users(name, date_of_bd) VALUES ( {name}, {date_of_bd})')
+            cur.execute("INSERT INTO users(name, date_of_bd) VALUES ('%s', '%s')" % (name, date_of_bd))
             connection.commit()
             cur.close()
             connection.close()
-
+            msg = bot.reply_to(message, 'Добавлен пользователь: ' + user.name)
+            #bot.register_next_step_handler(msg, )
 bot.infinity_polling()
 
 '''
