@@ -57,8 +57,19 @@ def callback_message(callback):
             bot.reply_to(message, 'Добавлен пользователь: ' + user.name)
             action(message)
     if callback.data == 'show bd':
-        # вывести бд
-        action(message)
+        connection = sqlite3.connect('bd.sql')
+        cur = connection.cursor()
+        connection.commit()
+        cur.execute('SELECT * FROM Users')
+        users = cur.fetchall()
+
+        # Выводим результаты
+        for user in users:
+            bot.send_message(callback.message.chat.id, user[0] + ' ' + user[1])
+
+        # Закрываем соединение
+        cur.close()
+        connection.close()
 
 
 bot.infinity_polling()
