@@ -9,21 +9,31 @@ import sqlite3
 bot = telebot.TeleBot('6827864691:AAH2MPjAwSdaQctyiic5Z2Nbo30AQ8rxMl8')
 date_of_bd = None
 name = None
+
+connection = sqlite3.connect('bd.sql')
+cur = connection.cursor()
+cur.execute('CREATE TABLE IF NOT EXISTS users(name varchar(100), date_of_bd varchar(100))')
+connection.commit()
+cur.close()
+connection.close()
+
+#action(message)
+
 class User:
     def __init__(self, name):
         self.name = name
+
 @bot.message_handler(commands=['start','hello'])
 def start(message):
-    connection = sqlite3.connect('bd.sql')
-    cur = connection.cursor()
-    cur.execute('CREATE TABLE IF NOT EXISTS users(name varchar(100), date_of_bd date)')
-    connection.commit()
-    cur.close()
-    connection.close()
+    bot.send_message(message.chat.id,'Здравствуйте, повелитель!')
+    action(message)
+def action(message):
     markup = types.InlineKeyboardMarkup()
     btn1 = types.InlineKeyboardButton("Внесите ДР", callback_data='add bd')
-    markup.add(btn1)
-    bot.send_message(message.chat.id,'Здравствуйте, повелитель!', reply_markup=markup)
+    btn2 = types.InlineKeyboardButton("Показать список ДР", callback_data='show bd')
+    markup.add(btn1, btn2)
+    bot.send_message(message.chat.id, 'Выберите действие:', reply_markup=markup)
+
 @bot.callback_query_handler(func=lambda callback: True)
 def callback_message(callback):
     if callback.data == 'add bd':
@@ -44,20 +54,12 @@ def callback_message(callback):
             connection.commit()
             cur.close()
             connection.close()
-            msg = bot.reply_to(message, 'Добавлен пользователь: ' + user.name)
-            #bot.register_next_step_handler(msg, )
+            bot.reply_to(message, 'Добавлен пользователь: ' + user.name)
+            action(message)
+    if callback.data == 'show bd':
+        # вывести бд
+        action(message)
+
+
 bot.infinity_polling()
 
-'''
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
-
-
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
-
-'''
