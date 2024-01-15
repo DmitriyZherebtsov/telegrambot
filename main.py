@@ -9,6 +9,7 @@ import sqlite3
 bot = telebot.TeleBot('6827864691:AAH2MPjAwSdaQctyiic5Z2Nbo30AQ8rxMl8')
 date_of_bd = None
 name = None
+message_chat_id = None
 
 connection = sqlite3.connect('bd.sql')
 cur = connection.cursor()
@@ -26,13 +27,15 @@ class User:
 @bot.message_handler(commands=['start','hello'])
 def start(message):
     bot.send_message(message.chat.id,'Здравствуйте, повелитель!')
-    action(message)
-def action(message):
+    global message_chat_id
+    message_chat_id = message.chat.id
+    action(message_chat_id)
+def action(message_chat_id):
     markup = types.InlineKeyboardMarkup()
     btn1 = types.InlineKeyboardButton("Внесите ДР", callback_data='add bd')
     btn2 = types.InlineKeyboardButton("Показать список ДР", callback_data='show bd')
     markup.add(btn1, btn2)
-    bot.send_message(message.chat.id, 'Выберите действие:', reply_markup=markup)
+    bot.send_message(message_chat_id, 'Выберите действие:', reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda callback: True)
 def callback_message(callback):
@@ -50,26 +53,26 @@ def callback_message(callback):
             user = User(name)
             connection = sqlite3.connect('bd.sql')
             cur = connection.cursor()
-            cur.execute("INSERT INTO users(name, date_of_bd) VALUES ('%s', '%s')" % (name, date_of_bd))
+            cur.execute("INSERT INTO users(name, date_of_bd, user_id) VALUES ('%s', '%s')" % (name, date_of_bd,user_id))
             connection.commit()
             cur.close()
             connection.close()
             bot.reply_to(message, 'Добавлен пользователь: ' + user.name)
-            action(message)
+            action(messagmessage_chat_id)
+
     if callback.data == 'show bd':
         connection = sqlite3.connect('bd.sql')
         cur = connection.cursor()
         connection.commit()
-        cur.execute('SELECT * FROM Users')
+        cur.execute("SELECT * FROM Users") # where user_id = "% (message.from_user.id))
         users = cur.fetchall()
-
         # Выводим результаты
         for user in users:
             bot.send_message(callback.message.chat.id, user[0] + ' ' + user[1])
-
         # Закрываем соединение
         cur.close()
         connection.close()
+        action(message_chat_id)
 
 
 bot.infinity_polling()
