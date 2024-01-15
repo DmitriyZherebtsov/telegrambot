@@ -8,12 +8,13 @@ from telebot import types
 import sqlite3
 bot = telebot.TeleBot('6827864691:AAH2MPjAwSdaQctyiic5Z2Nbo30AQ8rxMl8')
 date_of_bd = None
+user_id_tg = None
 name = None
-message_chat_id = None
 
 connection = sqlite3.connect('bd.sql')
 cur = connection.cursor()
-cur.execute('CREATE TABLE IF NOT EXISTS users(name varchar(100), date_of_bd varchar(100))')
+cur.execute('drop table users')
+cur.execute('CREATE TABLE IF NOT EXISTS users(name varchar(100), date_of_bd varchar(100), user_id varchar(100))')
 connection.commit()
 cur.close()
 connection.close()
@@ -26,16 +27,16 @@ class User:
 
 @bot.message_handler(commands=['start','hello'])
 def start(message):
+    global user_id_tg
+    user_id_tg = message.from_user.id
     bot.send_message(message.chat.id,'Здравствуйте, повелитель!')
-    global message_chat_id
-    message_chat_id = message.chat.id
-    action(message_chat_id)
-def action(message_chat_id):
+    action(message)
+def action(message):
     markup = types.InlineKeyboardMarkup()
     btn1 = types.InlineKeyboardButton("Внесите ДР", callback_data='add bd')
     btn2 = types.InlineKeyboardButton("Показать список ДР", callback_data='show bd')
     markup.add(btn1, btn2)
-    bot.send_message(message_chat_id, 'Выберите действие:', reply_markup=markup)
+    bot.send_message(message.chat.id, 'Выберите действие:', reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda callback: True)
 def callback_message(callback):
@@ -53,26 +54,26 @@ def callback_message(callback):
             user = User(name)
             connection = sqlite3.connect('bd.sql')
             cur = connection.cursor()
-            cur.execute("INSERT INTO users(name, date_of_bd, user_id) VALUES ('%s', '%s')" % (name, date_of_bd,user_id))
+            cur.execute("INSERT INTO users(name, date_of_bd, user_id) VALUES ('%s', '%s')" % (name, date_of_bd, user_id_tg))
             connection.commit()
             cur.close()
             connection.close()
             bot.reply_to(message, 'Добавлен пользователь: ' + user.name)
-            action(messagmessage_chat_id)
-
+            action(message)
     if callback.data == 'show bd':
         connection = sqlite3.connect('bd.sql')
         cur = connection.cursor()
         connection.commit()
-        cur.execute("SELECT * FROM Users") # where user_id = "% (message.from_user.id))
+        cur.execute("SELECT * FROM Users where user_id ='%s' " % (user_id_tg))
         users = cur.fetchall()
+
         # Выводим результаты
         for user in users:
             bot.send_message(callback.message.chat.id, user[0] + ' ' + user[1])
+
         # Закрываем соединение
         cur.close()
         connection.close()
-        action(message_chat_id)
 
 
 bot.infinity_polling()
