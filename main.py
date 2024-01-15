@@ -13,7 +13,7 @@ name = None
 
 connection = sqlite3.connect('bd.sql')
 cur = connection.cursor()
-cur.execute('drop table users')
+#cur.execute('drop table users')
 cur.execute('CREATE TABLE IF NOT EXISTS users(name varchar(100), date_of_bd varchar(100), user_id varchar(100))')
 connection.commit()
 cur.close()
@@ -54,7 +54,7 @@ def callback_message(callback):
             user = User(name)
             connection = sqlite3.connect('bd.sql')
             cur = connection.cursor()
-            cur.execute("INSERT INTO users(name, date_of_bd, user_id) VALUES ('%s', '%s')" % (name, date_of_bd, user_id_tg))
+            cur.execute("INSERT INTO users(name, date_of_bd, user_id) VALUES ('%s', '%s', '%s')" % (name, date_of_bd, user_id_tg))
             connection.commit()
             cur.close()
             connection.close()
