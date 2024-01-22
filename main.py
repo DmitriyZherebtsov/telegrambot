@@ -10,6 +10,7 @@ bot = telebot.TeleBot('6827864691:AAH2MPjAwSdaQctyiic5Z2Nbo30AQ8rxMl8')
 date_of_bd = None
 user_id_tg = None
 name = None
+message_chat_id = None
 
 connection = sqlite3.connect('bd.sql')
 cur = connection.cursor()
@@ -30,13 +31,15 @@ def start(message):
     global user_id_tg
     user_id_tg = message.from_user.id
     bot.send_message(message.chat.id,'Здравствуйте, повелитель!')
-    action(message)
-def action(message):
+    global message_chat_id
+    message_chat_id = message.chat.id
+    action(message_chat_id)
+def action(message_chat_id):
     markup = types.InlineKeyboardMarkup()
     btn1 = types.InlineKeyboardButton("Внесите ДР", callback_data='add bd')
     btn2 = types.InlineKeyboardButton("Показать список ДР", callback_data='show bd')
     markup.add(btn1, btn2)
-    bot.send_message(message.chat.id, 'Выберите действие:', reply_markup=markup)
+    bot.send_message(message_chat_id, 'Выберите действие:', reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda callback: True)
 def callback_message(callback):
@@ -59,7 +62,7 @@ def callback_message(callback):
             cur.close()
             connection.close()
             bot.reply_to(message, 'Добавлен пользователь: ' + user.name)
-            action(message)
+            action(message_chat_id)
     if callback.data == 'show bd':
         connection = sqlite3.connect('bd.sql')
         cur = connection.cursor()
@@ -74,7 +77,7 @@ def callback_message(callback):
         # Закрываем соединение
         cur.close()
         connection.close()
-
+        action(message_chat_id)
 
 bot.infinity_polling()
 
