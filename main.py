@@ -10,22 +10,17 @@ bot = telebot.TeleBot('6827864691:AAH2MPjAwSdaQctyiic5Z2Nbo30AQ8rxMl8')
 date_of_bd = None
 user_id_tg = None
 name = None
+phone = None
+email = None
+information = None
 message_chat_id = None
 
 connection = sqlite3.connect('bd.sql')
 cur = connection.cursor()
-#cur.execute('drop table users')
-cur.execute('CREATE TABLE IF NOT EXISTS users(name varchar(100), date_of_bd varchar(100), user_id varchar(100))')
+cur.execute('CREATE TABLE IF NOT EXISTS users(name varchar(100), date_of_bd varchar(100), user_id varchar(100), phone varchar(100), email varchar(100), information varchar(200))')
 connection.commit()
 cur.close()
 connection.close()
-
-#action(message)
-
-class User:
-    def __init__(self, name):
-        self.name = name
-
 @bot.message_handler(commands=['start','hello'])
 def start(message):
     global user_id_tg
@@ -54,25 +49,47 @@ def callback_message(callback):
         def process_name(message):
             global name
             name = message.text.strip()
-            user = User(name)
+            msg = bot.reply_to(message, 'Введите номер телефона')
+            bot.register_next_step_handler(msg, process_phone)
+        def process_phone(message):
+            global phone
+            phone = message.text.strip()
+            msg = bot.reply_to(message, 'Введите почту')
+            bot.register_next_step_handler(msg, process_email)
+        def process_email(message):
+            global email
+            email = message.text.strip()
+            msg = bot.reply_to(message, 'Введите краткую информацию о человеке')
+            bot.register_next_step_handler(msg, process_information)
+        def process_information(message):
+            global information
+            global name
+            global date_of_bd
+            global phone
+            global email
+            information = message.text.strip()
             connection = sqlite3.connect('bd.sql')
             cur = connection.cursor()
-            cur.execute("INSERT INTO users(name, date_of_bd, user_id) VALUES ('%s', '%s', '%s')" % (name, date_of_bd, user_id_tg))
+            cur.execute("INSERT INTO users(name, date_of_bd, user_id, phone, email, information) VALUES ('%s', '%s', '%s', '%s', '%s', '%s')" % (name, date_of_bd, user_id_tg, phone, email, information))
             connection.commit()
             cur.close()
             connection.close()
-            bot.reply_to(message, 'Добавлен пользователь: ' + user.name)
+            bot.reply_to(message, 'Добавлен пользователь: ' + name)
             action(message_chat_id)
     if callback.data == 'show bd':
         connection = sqlite3.connect('bd.sql')
         cur = connection.cursor()
         connection.commit()
-        cur.execute("SELECT * FROM Users where user_id ='%s' " % (user_id_tg))
+        cur.execute("SELECT name, date_of_bd FROM Users where user_id ='%s' " % (user_id_tg))
         users = cur.fetchall()
 
         # Выводим результаты
         for user in users:
-            bot.send_message(callback.message.chat.id, user[0] + ' ' + user[1])
+            s = ' '
+            for name in user:
+                s = s + ' ' + name
+            s = s + '\n'
+            bot.send_message(callback.message.chat.id, s)
 
         # Закрываем соединение
         cur.close()
