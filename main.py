@@ -17,12 +17,10 @@ message_chat_id = None
 
 connection = sqlite3.connect('bd.sql')
 cur = connection.cursor()
-#cur.execute('drop table users')
 cur.execute('CREATE TABLE IF NOT EXISTS users(name varchar(100), date_of_bd varchar(100), user_id varchar(100), phone varchar(100), email varchar(100), information varchar(200))')
 connection.commit()
 cur.close()
 connection.close()
-
 @bot.message_handler(commands=['start','hello'])
 def start(message):
     global user_id_tg
@@ -65,6 +63,10 @@ def callback_message(callback):
             bot.register_next_step_handler(msg, process_information)
         def process_information(message):
             global information
+            global name
+            global date_of_bd
+            global phone
+            global email
             information = message.text.strip()
             connection = sqlite3.connect('bd.sql')
             cur = connection.cursor()
@@ -78,7 +80,7 @@ def callback_message(callback):
         connection = sqlite3.connect('bd.sql')
         cur = connection.cursor()
         connection.commit()
-        cur.execute("SELECT * FROM Users where user_id ='%s' " % (user_id_tg))
+        cur.execute("SELECT name, date_of_bd FROM Users where user_id ='%s' " % (user_id_tg))
         users = cur.fetchall()
 
         # Выводим результаты
