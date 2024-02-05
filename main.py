@@ -5,7 +5,6 @@
 
 import telebot
 from telebot import types
-import sqlite3
 bot = telebot.TeleBot('6827864691:AAH2MPjAwSdaQctyiic5Z2Nbo30AQ8rxMl8')
 date_of_bd = None
 user_id_tg = None
@@ -14,11 +13,10 @@ phone = None
 email = None
 information = None
 message_chat_id = None
-
-connection = sqlite3.connect('bd.sql')
+import psycopg2
+connection = psycopg2.connect(dbname='postgres', user='postgres', password='postgres', host='158.160.146.175')
 cur = connection.cursor()
-cur.execute('CREATE TABLE IF NOT EXISTS users(name varchar(100), date_of_bd varchar(100), user_id varchar(100), phone varchar(100), email varchar(100), information varchar(200))')
-connection.commit()
+cur.execute('CREATE TABLE IF NOT EXISTS users(name varchar(100), date_of_bd date(100), user_id varchar(100), phone varchar(100), email varchar(100), information varchar(200))')
 cur.close()
 connection.close()
 @bot.message_handler(commands=['start','hello'])
@@ -68,16 +66,15 @@ def callback_message(callback):
             global phone
             global email
             information = message.text.strip()
-            connection = sqlite3.connect('bd.sql')
+            connection = psycopg2.connect('postgres')
             cur = connection.cursor()
             cur.execute("INSERT INTO users(name, date_of_bd, user_id, phone, email, information) VALUES ('%s', '%s', '%s', '%s', '%s', '%s')" % (name, date_of_bd, user_id_tg, phone, email, information))
-            connection.commit()
             cur.close()
             connection.close()
             bot.reply_to(message, 'Добавлен пользователь: ' + name)
             action(message_chat_id)
     if callback.data == 'show bd':
-        connection = sqlite3.connect('bd.sql')
+        connection = psycopg2.connect('postgres')
         cur = connection.cursor()
         connection.commit()
         cur.execute("SELECT name, date_of_bd FROM Users where user_id ='%s' " % (user_id_tg))
