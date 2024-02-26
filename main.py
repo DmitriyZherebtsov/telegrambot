@@ -31,12 +31,22 @@ def action(message_chat_id):
     markup = types.InlineKeyboardMarkup()
     btn1 = types.InlineKeyboardButton("Внесите ДР", callback_data='add bd')
     btn2 = types.InlineKeyboardButton("Показать список ДР", callback_data='show bd')
-    markup.add(btn1, btn2)
+    btn3 = types.InlineKeyboardButton("Изменить пользователя", callback_data='change_info')
+    markup.add(btn1, btn2, btn3)
     global user_id_tg
     bot.send_message(message_chat_id, 'Выберите действие:', reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda callback: True)
 def callback_message(callback):
+    if callback.data == 'change_info':
+        markup = types.InlineKeyboardMarkup()
+        btn4 = types.InlineKeyboardButton("Имя и фамилия", callback_data='name_surname')
+        btn5 = types.InlineKeyboardButton("Дата рождения", callback_data='date_bd')
+        btn6 = types.InlineKeyboardButton("Номер телефона", callback_data='phone')
+        btn7 = types.InlineKeyboardButton("Почта", callback_data='email')
+        btn8 = types.InlineKeyboardButton("Информация", callback_data='info')
+        markup.add(btn4, btn5, btn6, btn7, btn8)
+        bot.send_message(message_chat_id, 'Что вы хотите изменить?', reply_markup=markup)
     if callback.data == 'add bd':
         bot.send_message(callback.message.chat.id, 'Введите дату в формате дд.мм.гггг')
         @bot.message_handler(content_types=['text'])
