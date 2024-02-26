@@ -5,7 +5,6 @@
 
 import telebot
 from telebot import types
-import sqlite3
 bot = telebot.TeleBot('6827864691:AAH2MPjAwSdaQctyiic5Z2Nbo30AQ8rxMl8')
 date_of_bd = None
 user_id_tg = None
@@ -14,11 +13,10 @@ phone = None
 email = None
 information = None
 message_chat_id = None
-
-connection = sqlite3.connect('bd.sql')
+import psycopg2
+connection = psycopg2.connect(dbname='postgres', user='postgres', password='postgres', host='158.160.148.72')
 cur = connection.cursor()
-cur.execute('CREATE TABLE IF NOT EXISTS users(name varchar(100), date_of_bd varchar(100), user_id varchar(100), phone varchar(100), email varchar(100), information varchar(200))')
-connection.commit()
+cur.execute('CREATE TABLE IF NOT EXISTS users(name varchar(100), date_of_bd date, user_id varchar(100), phone varchar(100), email varchar(100), information varchar(200))')
 cur.close()
 connection.close()
 @bot.message_handler(commands=['start','hello'])
@@ -34,6 +32,7 @@ def action(message_chat_id):
     btn1 = types.InlineKeyboardButton("Внесите ДР", callback_data='add bd')
     btn2 = types.InlineKeyboardButton("Показать список ДР", callback_data='show bd')
     markup.add(btn1, btn2)
+    global user_id_tg
     bot.send_message(message_chat_id, 'Выберите действие:', reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda callback: True)
@@ -68,19 +67,34 @@ def callback_message(callback):
             global phone
             global email
             information = message.text.strip()
-            connection = sqlite3.connect('bd.sql')
+            connection = psycopg2.connect(dbname='postgres', user='postgres', password='postgres',
+                                          host='158.160.148.72')
             cur = connection.cursor()
-            cur.execute("INSERT INTO users(name, date_of_bd, user_id, phone, email, information) VALUES ('%s', '%s', '%s', '%s', '%s', '%s')" % (name, date_of_bd, user_id_tg, phone, email, information))
+            user_id_tg = message.from_user.id
+            message_chat_id = message.chat.id
+            #print(name, date_of_bd, user_id_tg, phone, email, information)
+            cur.execute("INSERT INTO users(name, date_of_bd, user_id, phone, email, information) VALUES ('%s', to_date('%s','dd.mm.yyyy'), '%s', '%s', '%s', '%s')" % (name, date_of_bd, user_id_tg, phone, email, information))
             connection.commit()
             cur.close()
             connection.close()
             bot.reply_to(message, 'Добавлен пользователь: ' + name)
             action(message_chat_id)
+
+
+
+
     if callback.data == 'show bd':
-        connection = sqlite3.connect('bd.sql')
+        connection = psycopg2.connect(dbname='postgres', user='postgres', password='postgres',
+                                      host='158.160.148.72')
         cur = connection.cursor()
-        connection.commit()
-        cur.execute("SELECT name, date_of_bd FROM Users where user_id ='%s' " % (user_id_tg))
+        global user_id_tg
+        #@todo при падении бота переменые чистятся, и идёт в базу неправильный запрос
+        #user_id_tg = callback.message.from_user.id
+
+        global message_chat_id
+        message_chat_id = callback.message.chat.id
+
+        cur.execute("SELECT name, to_char(date_of_bd,'dd.mm.yyyy') FROM users where user_id ='%s' " % (user_id_tg))
         users = cur.fetchall()
 
         # Выводим результаты
@@ -90,6 +104,7 @@ def callback_message(callback):
                 s = s + ' ' + name
             s = s + '\n'
             bot.send_message(callback.message.chat.id, s)
+            #@TODO добавить уведомление, что список пуст
 
         # Закрываем соединение
         cur.close()
