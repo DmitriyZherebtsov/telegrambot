@@ -15,19 +15,35 @@ phone = None
 email = None
 information = None
 message_chat_id = None
+time = '09:00'
 import psycopg2
-connection = psycopg2.connect(dbname='postgres', user='postgres', password='postgres', host='158.160.152.61')
+connection = psycopg2.connect(dbname='postgres', user='postgres', password='postgres', host='158.160.129.100')
 cur = connection.cursor()
 cur.execute('CREATE TABLE IF NOT EXISTS public.users(name varchar(100), date_of_bd date, chat_id varchar(100), phone varchar(100), email varchar(100), information varchar(200))')
+cur.execute('CREATE TABLE IF NOT EXISTS public.send_time(time varchar(50), chat_id varchar(100))')
+connection.commit()
 cur.close()
 connection.close()
 @bot.message_handler(commands=['start','hello'])
 def start(message):
     global chat_id_tg
-    chat_id_tg = message.chat.id
-    bot.send_message(message.chat.id,'Здравствуйте, повелитель!')
     global message_chat_id
     message_chat_id = message.chat.id
+    chat_id_tg = message.chat.id
+    connection = psycopg2.connect(dbname='postgres', user='postgres', password='postgres',
+                                  host='158.160.129.100')
+    cur = connection.cursor()
+    cur.execute("SELECT chat_id FROM public.send_time")
+    send_time_chat_ids = cur.fetchall()
+    chat_id_array = []
+    for chat_ids in send_time_chat_ids:
+        chat_id_array.append(chat_ids[0])
+    if str(chat_id_tg) not in chat_id_array:
+        cur.execute("INSERT INTO public.send_time(time, chat_id) VALUES ('%s', '%s')" % (time, chat_id_tg))
+        connection.commit()
+    cur.close()
+    connection.close()
+    bot.send_message(message.chat.id,'Здравствуйте, повелитель!')
     action(message_chat_id)
 def schedule_checker():
     while True:
@@ -35,31 +51,55 @@ def schedule_checker():
         sleep(1)
 def function_to_run():
     connection = psycopg2.connect(dbname='postgres', user='postgres', password='postgres',
-                                  host='158.160.152.61')
+                                  host='158.160.129.100')
     cur = connection.cursor()
-    cur.execute("SELECT name, chat_id FROM public.users where extract(day from date_of_bd) = extract(day from current_timestamp) and extract(month from date_of_bd) = extract(month from current_timestamp)")
+    cur.execute("SELECT  u.name, st.chat_id                                                          "
+                "FROM public.send_time st JOIN public.users u ON u.chat_id = st.chat_id                          "
+                "where                                                                                           "
+                "  extract(day from u.date_of_bd) = extract(day from current_timestamp)                         "
+                "and extract(month from u.date_of_bd) = extract(month from current_timestamp)                    "
+                "and extract(hour from to_timestamp(st.time,'hh24:mi')) = extract(hour from current_timestamp)     "
+                #"and extract(minute from to_timestamp(st.time,'hh24:mi')) = extract(minute from current_timestamp);"
+                )
     users = cur.fetchall()
     for user in users:
         bot.send_message(user[1], 'Не забудьте поздравить этого человека с др:' + user[0])
     cur.close()
     connection.close()
 if __name__ == "__main__":
-    schedule.every().day.at("09:00").do(function_to_run)
+    schedule.every().minute.do(function_to_run)
     Thread(target=schedule_checker).start()
 def action(message_chat_id):
     markup = types.InlineKeyboardMarkup()
     btn1 = types.InlineKeyboardButton("Внесите ДР", callback_data='add bd')
     btn2 = types.InlineKeyboardButton("Показать список ДР", callback_data='show bd')
     btn3 = types.InlineKeyboardButton("Изменить пользователя", callback_data='change_info')
-    markup.add(btn1, btn2, btn3)
+    btntime = types.InlineKeyboardButton("Время отправки", callback_data='choose_time')
+    markup.add(btn1, btn2, btn3,btntime)
     global user_id_tg
     bot.send_message(message_chat_id, 'Выберите действие:', reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda callback: True)
 def callback_message(callback):
+    if callback.data == 'choose_time':
+        bot.send_message(callback.message.chat.id, 'Напишите удобное время отправки напоминания в формате hh:mm')
+
+        @bot.message_handler(content_types=['text'])
+        def change_time(message):
+            global time
+            global message_chat_id
+            time = message.text.strip()
+            connection = psycopg2.connect(dbname='postgres', user='postgres', password='postgres',
+                                      host='158.160.129.100')
+            cur = connection.cursor()
+            cur.execute("UPDATE public.send_time SET time = '%s'  WHERE chat_id ='%s' " % (time, chat_id_tg))
+            connection.commit()
+            cur.close()
+            connection.close()
+            action(message_chat_id)
     if callback.data == 'change_info':
         connection = psycopg2.connect(dbname='postgres', user='postgres', password='postgres',
-                                      host='158.160.152.61')
+                                      host='158.160.129.100')
         cur = connection.cursor()
         message_chat_id = callback.message.chat.id
         cur.execute("SELECT name FROM public.users where chat_id ='%s' " % (chat_id_tg))
@@ -75,7 +115,7 @@ def callback_message(callback):
         cur.close()
         connection.close()
         action(message_chat_id)
-        cur.execute("SELECT name') FROM public.users where chat_id ='%s' " % (chat_id_tg))
+        cur.execute("SELECT name FROM public.users where chat_id ='%s' " % (chat_id_tg))
         ''' '#вывод кнопок после выбранного юзера
         markup = types.InlineKeyboardMarkup()
         btn4 = types.InlineKeyboardButton("Имя и фамилия", callback_data='name_surname')
@@ -87,28 +127,47 @@ def callback_message(callback):
         bot.send_message(callback.message.chat.id, 'Что вы хотите изменить?', reply_markup=markup)
         '''
     if callback.data == 'add bd':
-        bot.send_message(callback.message.chat.id, 'Введите дату в формате дд.мм.гггг')
+        markup1 = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        btn_skip = types.KeyboardButton('Пропустить')
+        markup1.add(btn_skip)
+        bot.send_message(callback.message.chat.id, 'Введите дату в формате дд.мм.гггг', reply_markup=markup1)
         @bot.message_handler(content_types=['text'])
         def handle_bd(message):
-            global date_of_bd
-            date_of_bd = message.text.strip()
-            msg = bot.reply_to(message, 'Введите имя и фамилию')
-            bot.register_next_step_handler(msg, process_name)
+            if (message.text == 'Пропустить'):
+                process_name(message)
+            else:
+                global date_of_bd
+                date_of_bd = message.text.strip()
+                msg = bot.reply_to(message, 'Введите имя и фамилию', reply_markup=markup1)
+                bot.register_next_step_handler(msg, process_name)
         def process_name(message):
-            global name
-            name = message.text.strip()
-            msg = bot.reply_to(message, 'Введите номер телефона')
-            bot.register_next_step_handler(msg, process_phone)
+            markup2 = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            btn2_skip = types.KeyboardButton('Пропустить')
+            markup2.add(btn2_skip)
+            if (message.text == 'Пропустить'):
+                process_phone(message)
+            else:
+                global name
+                name = message.text.strip()
+                msg = bot.reply_to(message, 'Введите номер телефона', reply_markup=markup1)
+                bot.register_next_step_handler(msg, process_phone)
         def process_phone(message):
-            global phone
-            phone = message.text.strip()
-            msg = bot.reply_to(message, 'Введите почту')
-            bot.register_next_step_handler(msg, process_email)
+            if (message.text == 'Пропустить'):
+                process_email(message)
+            else:
+                global phone
+                phone = message.text.strip()
+                msg = bot.reply_to(message, 'Введите почту', reply_markup=markup1)
+                bot.register_next_step_handler(msg, process_email)
         def process_email(message):
-            global email
-            email = message.text.strip()
-            msg = bot.reply_to(message, 'Введите краткую информацию о человеке')
-            bot.register_next_step_handler(msg, process_information)
+            if (message.text == 'Пропустить'):
+                process_information(message)
+            else:
+                global email
+                email = message.text.strip()
+                msg = bot.reply_to(message, 'Введите краткую информацию о человеке', reply_markup=markup1)
+                bot.register_next_step_handler(msg, process_information)
+
         def process_information(message):
             global information
             global name
@@ -117,7 +176,7 @@ def callback_message(callback):
             global email
             information = message.text.strip()
             connection = psycopg2.connect(dbname='postgres', user='postgres', password='postgres',
-                                          host='158.160.152.61')
+                                          host='158.160.129.100')
             cur = connection.cursor()
             chat_id_tg = message.chat.id
             message_chat_id = message.chat.id
@@ -126,7 +185,10 @@ def callback_message(callback):
             connection.commit()
             cur.close()
             connection.close()
-            bot.reply_to(message, 'Добавлен пользователь: ' + name)
+            if name != None:
+                bot.reply_to(message, 'Добавлен пользователь: ' + name)
+            else:
+                bot.reply_to(message, 'Добавлен пользователь')
             action(message_chat_id)
 
 
@@ -134,7 +196,7 @@ def callback_message(callback):
 
     if callback.data == 'show bd':
         connection = psycopg2.connect(dbname='postgres', user='postgres', password='postgres',
-                                      host='158.160.152.61')
+                                      host='158.160.129.100')
         cur = connection.cursor()
         #@todo при падении бота переменые чистятся, и идёт в базу неправильный запрос
         #user_id_tg = callback.message.from_user.id
@@ -149,7 +211,10 @@ def callback_message(callback):
             for name in user:
                 s = s + ' ' + name
             s = s + '\n'
-            bot.send_message(callback.message.chat.id, s)
+            if s != ' ':
+                bot.send_message(callback.message.chat.id, s)
+            else:
+                bot.send_message(callback.message.chat.id, 'Список пуст!')
             #@TODO добавить уведомление, что список пуст
 
         # Закрываем соединение
