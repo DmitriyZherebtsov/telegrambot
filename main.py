@@ -29,10 +29,6 @@ cur.close()
 connection.close()
 @bot.message_handler(commands=['start','hello'])
 def start(message):
-    global chat_id_tg
-    global message_chat_id
-    message_chat_id = message.chat.id
-    chat_id_tg = message.chat.id
     connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7', host='158.160.137.15')
     cur = connection.cursor()
     cur.execute("SELECT chat_id FROM public.send_time")
@@ -40,9 +36,9 @@ def start(message):
     chat_id_array = []
     for chat_ids in send_time_chat_ids:
         chat_id_array.append(chat_ids[0])
-    if str(chat_id_tg) not in chat_id_array:
+    if str(message.chat.id) not in chat_id_array:
         cur.execute(
-            "INSERT INTO public.send_time(time, chat_id) VALUES ('%s', '%s')" % (time, chat_id_tg))
+            "INSERT INTO public.send_time(time, chat_id) VALUES ('%s', '%s')" % (time, message.chat.id))
     connection.commit()
     cur.close()
     connection.close()
@@ -87,7 +83,7 @@ def callback_message(callback):
             time = message.text.strip()
             connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7', host='158.160.137.15')
             cur = connection.cursor()
-            cur.execute("UPDATE public.send_time SET time = '%s'  WHERE chat_id ='%s' " % (time, chat_id_tg))
+            cur.execute("UPDATE public.send_time SET time = '%s'  WHERE chat_id ='%s' " % (time, message.chat.id))
             connection.commit()
             cur.close()
             connection.close()
@@ -95,8 +91,7 @@ def callback_message(callback):
     if callback.data == 'change_info':
         connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7', host='158.160.137.15')
         cur = connection.cursor()
-        message_chat_id = callback.message.chat.id
-        cur.execute("SELECT name FROM public.users where chat_id ='%s' " % (chat_id_tg))
+        cur.execute("SELECT name FROM public.users where chat_id ='%s' " % (callback.message.chat.id))
         users = cur.fetchall()
         for user in users:
             x = ' '
@@ -109,7 +104,7 @@ def callback_message(callback):
         cur.close()
         connection.close()
         action(message_chat_id)
-        cur.execute("SELECT name FROM public.users where chat_id ='%s' " % (chat_id_tg))
+        cur.execute("SELECT name FROM public.users where chat_id ='%s' " % (callback.message.chat.id))
         ''' '#вывод кнопок после выбранного юзера
         markup = types.InlineKeyboardMarkup()
         btn4 = types.InlineKeyboardButton("Имя и фамилия", callback_data='name_surname')
@@ -121,6 +116,7 @@ def callback_message(callback):
         bot.send_message(callback.message.chat.id, 'Что вы хотите изменить?', reply_markup=markup)
         '''
     if callback.data == 'add bd':
+        #def insert_user(message: types.Message):
         markup1 = types.ReplyKeyboardMarkup(resize_keyboard=True)
         bot.send_message(callback.message.chat.id, 'Введите дату в формате дд.мм.гггг', reply_markup=markup1)
         @bot.message_handler(content_types=['text'])
@@ -128,12 +124,12 @@ def callback_message(callback):
                 global date_of_bd
                 pattern = re.compile(r'^([0-9]{2}\.[0-9]{2}\.[0-9]{4})$')
                 date_of_bd = message.text.strip()
-                if pattern.match(date_of_bd):
+                if pattern.match(message.text.strip()):
                     msg = bot.reply_to(message, 'Введите имя и фамилию', reply_markup=markup1)
                     bot.register_next_step_handler(msg, process_name)
                 else:
-                    bot.send_message(callback.message.chat.id, 'Неправильный формат ввода')
-                    callback_message(callback)
+                    bot.send_message(message.chat.id, 'Неправильный формат ввода')
+                    action(message)
         def process_name(message):
                 global name
                 name = message.text.strip()
@@ -177,25 +173,21 @@ def callback_message(callback):
             global date_of_bd
             global phone
             global email
-            pattern = re.compile(r'^([0-9]{2}\.[0-9]{2}\.[0-9]{4})$')
-            if pattern.match(date_of_bd):
+            try:
                 connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
                                               host='158.160.137.15')
                 cur = connection.cursor()
-                chat_id_tg = message.chat.id
-                message_chat_id = message.chat.id
                 cur.execute(
                     "INSERT INTO public.users(name, date_of_bd, chat_id, phone, email, information) VALUES ('%s', to_date('%s','dd.mm.yyyy'), '%s', '%s', '%s', '%s')" % (
-                    name, date_of_bd, chat_id_tg, phone, email, information))
+                name, date_of_bd, message.chat.id, phone, email, information))
                 connection.commit()
                 cur.close()
                 connection.close()
                 bot.reply_to(message, 'Добавлен пользователь: ' + name)
                 action(message)
-            else:
-                bot.send_message(callback.message.chat.id, 'Неправильный ввод даты. Заполните форму заново')
-                handle_bd(message)
-
+            except Exception:
+                bot.send_message(message.chat.id, 'Что-то пошло не так. Попробуйте другие данные.')
+                action(message)
 
 
 
