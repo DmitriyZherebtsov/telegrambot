@@ -4,6 +4,7 @@
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import schedule
 import re
+import time
 import datetime
 from threading import Thread
 from time import sleep
@@ -91,15 +92,18 @@ def callback_message(callback):
         def change_time(message):
             #TODO: проверить формат времени (:)
             try:
-                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7', host='158.160.137.15')
+                time.strptime(message.text.strip(), '%H:%M')
+                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
+                                              host='158.160.137.15')
                 cur = connection.cursor()
-                cur.execute("UPDATE public.send_time SET time = '%s'  WHERE chat_id ='%s' " % (message.text.strip(), message.chat.id))
+                cur.execute("UPDATE public.send_time SET time = '%s'  WHERE chat_id ='%s' " % (
+                message.text.strip(), message.chat.id))
                 connection.commit()
                 cur.close()
                 connection.close()
                 bot.send_message(message.chat.id, 'Время изменено успешно')
                 action(message)
-            except Exception:
+            except ValueError:
                 bot.send_message(message.chat.id, 'Что-то пошло не так. Попробуйте другие данные.')
                 action(message)
     if callback.data == 'change_info':
