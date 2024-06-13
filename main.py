@@ -10,7 +10,6 @@ from threading import Thread
 from time import sleep
 import telebot
 from telebot import types
-
 def schedule_checker():
     while True:
         schedule.run_pending()
@@ -36,6 +35,7 @@ phone = None
 email = None
 information = None
 message_chat_id = None
+list_for_update = []
 list_of_inserts = [] #словарь для вставок пользователей. 1 пользователь = 1 запись
 import psycopg2
 try:
@@ -65,7 +65,7 @@ def start(message):
         connection.commit()
         cur.close()
         connection.close()
-        bot.send_message(message.chat.id,'Привет! \n'
+        to_pin = bot.send_message(message.chat.id,'Привет! \n'
             'Это бот, который напомнит тебе о днях рождениях твоих близких и подготовит поздравления для них 🥰 \n'
             
             '\n Пользоваться нашим ботом крайне просто: вы вносите дату рождения, имя, контактную информацию (при необходимости) и небольшой комментарий. \n'
@@ -73,12 +73,11 @@ def start(message):
             
             '\n В качестве удобства использования этого бота, вы можете выбрать наиболее подходящее время напоминаний. По умолчанию это время 9:00 утра. Однако вы можете его поменять, нажав кнопку "Время отправки". \n'
             
-            '\n Если вы хотите нас отблагодарить, поддержать работу и продвижение нашего бота, вы можете перевести нам любую комфортную сумму: \n'
-            'https://www.tinkoff.ru/cf/7L9dLH3LWHr \n'
-            
+            '\n Если вы хотите нас отблагодарить, поддержать работу и продвижение нашего бота, вы можете' "<a href='https://www.tinkoff.ru/cf/7L9dLH3LWHr'> перевести </a>" 'нам любую комфортную сумму \n'
             '\n Создатели: \n'
             '@poluvna \n'
-            '@Dmitry_Zherebtsov')
+            '@Dmitry_Zherebtsov', parse_mode = "HTML").message_id
+        bot.pin_chat_message(chat_id=message.chat.id, message_id=to_pin)
         action(message)
     except Exception:
         bot.send_message(message.chat.id, 'Что-то пошло не так. Проблемы на нашей стороне.')
@@ -90,7 +89,7 @@ def action(message: types.Message):
     markup = types.InlineKeyboardMarkup()
     btn1 = types.InlineKeyboardButton("Внесите ДР", callback_data='add bd')
     btn2 = types.InlineKeyboardButton("Показать список ДР", callback_data='show bd')
-    btn3 = types.InlineKeyboardButton("Изменить пользователя", callback_data='change_info')
+    btn3 = types.InlineKeyboardButton("Изменить запись", callback_data='change_info')
     btntime = types.InlineKeyboardButton("Время отправки", callback_data='choose_time')
     markup.add(btn1).add(btn2).add(btn3).add(btntime)
     global user_id_tg
@@ -120,35 +119,138 @@ def callback_message(callback):
                 bot.send_message(message.chat.id, 'Что-то пошло не так. Попробуйте другие данные.')
                 action(message)
     if callback.data == 'change_info':
-        try:
-            connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7', host='158.160.137.15')
+            connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
+                                          host='158.160.137.15')
             cur = connection.cursor()
-            cur.execute("SELECT name FROM public.users where chat_id ='%s' " % (callback.message.chat.id))
-            users = cur.fetchall()
-            for user in users:
-                x = ' '
-                for name in user:
-                    x = name
-                    markup = types.InlineKeyboardMarkup()
-                    btn_change = types.InlineKeyboardButton(x, callback_data='change_info')
-                    markup.add(btn_change)
-                    bot.send_message(callback.message.chat.id, reply_markup=markup)
+            cur.execute("SELECT name, id FROM public.users where chat_id ='%s' " % (callback.message.chat.id))
+            list_for_update = cur.fetchall()
+            if list_for_update is not None:
+                markup_change = types.InlineKeyboardMarkup()
+                for list in list_for_update:
+                    btn_change = types.InlineKeyboardButton(list[0], callback_data = "N_" + str(list[1]))
+                    markup_change.add(btn_change)
+                bot.send_message(callback.message.chat.id, 'Выберите запись для изменения:', reply_markup=markup_change)
+            else:
+                bot.send_message(callback.message.chat.id, 'У вас нет добавленных пользователей')
+                action(callback.message)
+            cur.close()
+            connection.close()
+    #TODO: подумать как выводить пользователя из режима изменения записей. наверное, главное меню (кнопка)
+
+    if "N_" in callback.data:
+        connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
+                                      host='158.160.137.15')
+        cur = connection.cursor()
+        cur.execute("SELECT name, to_char(date_of_bd,'dd.mm.yyyy'), phone, email, information,id FROM public.users where id = '%s' " % (callback.data[2:]))
+        list_of_attributes = cur.fetchall()
+        if list_of_attributes is not None:
+            markup3 = types.InlineKeyboardMarkup()
+            for list in list_of_attributes:
+                btn_change2 = types.InlineKeyboardButton('Имя: ' + list[0], callback_data="NP_" + 'name' + str(list[5]))
+                btn_change3 = types.InlineKeyboardButton('Дата рождения: ' + list[1], callback_data="NP_" + 'date_of_bd' + str(list[5]))
+                btn_change4 = types.InlineKeyboardButton('Телефон: ' + list[2], callback_data="NP_" + 'phone' + str(list[5]))
+                btn_change5 = types.InlineKeyboardButton('Почта: ' + list[3], callback_data="NP_" + 'email' + str(list[5]))
+                btn_change6 = types.InlineKeyboardButton('Информация: ' + list[4], callback_data="NP_" + 'information' + str(list[5]))
+                btn_main = types.InlineKeyboardButton('Вернуться в главное меню <<<', callback_data = "menu")
+                markup3.add(btn_change2).add(btn_change3).add(btn_change4).add(btn_change5).add(btn_change6).add(btn_main)
+            bot.send_message(callback.message.chat.id, 'Выберите запись для изменения:', reply_markup=markup3)
+        else:
+            bot.send_message(callback.message.chat.id, 'Что-то пошло не так')
+            action(callback.message)
+        cur.close()
+        connection.close()
+    if callback.data == "menu":
+        action(callback.message)
+    if "NP_" in callback.data and "name" in callback.data:
+        bot.send_message(callback.message.chat.id, 'Введите новое значение')
+
+        @bot.message_handler(content_types=['text'])
+        def change_name(message):
+            connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
+                                          host='158.160.137.15')
+            cur = connection.cursor()
+            cur.execute(
+                "UPDATE public.users SET name = '%s' where id = '%s' " % (message.text.strip(), callback.data[7:]))
+            bot.send_message(callback.message.chat.id, 'Имя пользователя изменено успешно!')
+            connection.commit()
+            cur.close()
+            connection.close()
+            markup_main2 = types.InlineKeyboardMarkup()
+            btn_main = types.InlineKeyboardButton("Вернуться в главное меню", callback_data='main')
+            btn_change_other = types.InlineKeyboardButton("Вернуться к записям для изменений", callback_data='back')
+            markup_main2.add(btn_main).add(btn_change_other)
+            bot.send_message(callback.message.chat.id, 'Выберите действие:', reply_markup=markup_main2)
+            if callback.data == "main":
+                action(message)
+            #TODO: прописать возвращение к выбору записей для изменения
+    if "NP_" in callback.data and "date_of_bd" in callback.data:
+        bot.send_message(callback.message.chat.id, 'Введите новое значение')
+        @bot.message_handler(content_types=['text'])
+        def change_date_of_bd(message):
+            pattern = re.compile(r'^([0-9]{2}\.[0-9]{2}\.[0-9]{4})$')
+
+            if pattern.match(message.text.strip()):
+                try:
+                    dateparts = message.text.strip().split('.')
+                    dateobj = datetime.date(int(dateparts[2]), int(dateparts[1]), int(dateparts[0]))
+                except Exception:
+                    bot.send_message(message.chat.id, 'Неправильный формат ввода')
+
+                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
+                                              host='158.160.137.15')
+                cur = connection.cursor()
+                cur.execute(
+                    "UPDATE public.users SET to_char(date_of_bd,'dd.mm.yyyy') = '%s' where id = '%s' " % (message.text.strip(), callback.data[13:]))
+                bot.send_message(message.chat.id, 'Дата рождения пользователя изменена успешно!')
+                connection.commit()
+                cur.close()
+                connection.close()
+                action(message)
+
+    if "NP_" in callback.data and "phone" in callback.data:
+        bot.send_message(callback.message.chat.id, 'Введите новое значение')
+
+        @bot.message_handler(content_types=['text'])
+        def change_phone(message):
+            connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
+                                          host='158.160.137.15')
+            cur = connection.cursor()
+            cur.execute(
+                "UPDATE public.users SET phone = '%s' where id = '%s' " % (message.text.strip(), callback.data[8:]))
+            bot.send_message(callback.message.chat.id, 'Телефон пользователя изменен успешно!')
+            connection.commit()
             cur.close()
             connection.close()
             action(callback.message)
-            cur.execute("SELECT name FROM public.users where chat_id ='%s' " % (callback.message.chat.id))
-            ''' '#вывод кнопок после выбранного юзера
-            markup = types.InlineKeyboardMarkup()
-            btn4 = types.InlineKeyboardButton("Имя и фамилия", callback_data='name_surname')
-            btn5 = types.InlineKeyboardButton("Дата рождения", callback_data='date_bd')
-            btn6 = types.InlineKeyboardButton("Номер телефона", callback_data='phone')
-            btn7 = types.InlineKeyboardButton("Почта", callback_data='email')
-            btn8 = types.InlineKeyboardButton("Информация", callback_data='info')
-            markup.add(btn4, btn5, btn6, btn7, btn8)
-            bot.send_message(callback.message.chat.id, 'Что вы хотите изменить?', reply_markup=markup)
-            '''
-        except Exception:
-            bot.send_message(callback.message.chat.id, 'Что-то пошло не так :(')
+    if "NP_" in callback.data and "email" in callback.data:
+        bot.send_message(callback.message.chat.id, 'Введите новое значение')
+
+        @bot.message_handler(content_types=['text'])
+        def change_email(message):
+            connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
+                                          host='158.160.137.15')
+            cur = connection.cursor()
+            cur.execute(
+                "UPDATE public.users SET email = '%s' where id = '%s' " % (message.text.strip(), callback.data[8:]))
+            bot.send_message(callback.message.chat.id, 'Почта пользователя изменена успешно!')
+            connection.commit()
+            cur.close()
+            connection.close()
+            action(callback.message)
+    if "NP_" in callback.data and "information" in callback.data:
+        bot.send_message(callback.message.chat.id, 'Введите новое значение')
+
+        @bot.message_handler(content_types=['text'])
+        def change_information(message):
+            connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
+                                          host='158.160.137.15')
+            cur = connection.cursor()
+            cur.execute(
+                "UPDATE public.users SET information = '%s' where id = '%s' " % (message.text.strip(), callback.data[14:]))
+            bot.send_message(callback.message.chat.id, 'Информация о пользователу изменена успешно!')
+            connection.commit()
+            cur.close()
+            connection.close()
             action(callback.message)
     if callback.data == 'add bd':
         global list_of_inserts
@@ -164,13 +266,9 @@ def callback_message(callback):
                 pattern = re.compile(r'^([0-9]{2}\.[0-9]{2}\.[0-9]{4})$')
 
                 if pattern.match(message.text.strip()):
-                    #date_of_bd = message.text.strip()
                     for len_list in range (len(list_of_inserts)):
                         if list_of_inserts[len_list][0] == message.chat.id:
                             list_of_inserts[len_list][1] = message.text.strip()
-
-
-
                     try:
                         dateparts = message.text.strip().split('.')
                         dateobj = datetime.date(int(dateparts[2]),int(dateparts[1]),int(dateparts[0]))
