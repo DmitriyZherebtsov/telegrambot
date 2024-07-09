@@ -191,21 +191,22 @@ def callback_message(callback):
 
             if pattern.match(message.text.strip()):
                 try:
-                    dateparts = message.text.strip().split('.')
+                    dateparts = callback.message.text.strip().split('.')
                     dateobj = datetime.date(int(dateparts[2]), int(dateparts[1]), int(dateparts[0]))
+                    connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
+                                                  host='158.160.137.15')
+                    cur = connection.cursor()
+                    cur.execute(
+                        "UPDATE public.users SET to_char(date_of_bd,'dd.mm.yyyy') = '%s' where id = '%s' " % (
+                        message.text.strip(), callback.data[13:]))
+                    bot.send_message(callback.message.chat.id, 'Дата рождения пользователя изменена успешно!')
+                    connection.commit()
+                    cur.close()
+                    connection.close()
+                    action(message)
                 except Exception:
-                    bot.send_message(message.chat.id, 'Неправильный формат ввода')
-
-                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                              host='158.160.137.15')
-                cur = connection.cursor()
-                cur.execute(
-                    "UPDATE public.users SET to_char(date_of_bd,'dd.mm.yyyy') = '%s' where id = '%s' " % (message.text.strip(), callback.data[13:]))
-                bot.send_message(message.chat.id, 'Дата рождения пользователя изменена успешно!')
-                connection.commit()
-                cur.close()
-                connection.close()
-                action(message)
+                    bot.send_message(callback.message.chat.id, 'Неправильный формат ввода')
+                    action(message)
 
     if "NP_" in callback.data and "phone" in callback.data:
         bot.send_message(callback.message.chat.id, 'Введите новое значение')
@@ -263,9 +264,11 @@ def callback_message(callback):
         bot.send_message(callback.message.chat.id, 'Введите дату в формате дд.мм.гггг', reply_markup=markup1)
         @bot.message_handler(content_types=['text'])
         def handle_bd(message):
+                #print(0)
                 pattern = re.compile(r'^([0-9]{2}\.[0-9]{2}\.[0-9]{4})$')
-
+                #print(1)
                 if pattern.match(message.text.strip()):
+                    #print(2)
                     for len_list in range (len(list_of_inserts)):
                         if list_of_inserts[len_list][0] == message.chat.id:
                             list_of_inserts[len_list][1] = message.text.strip()
@@ -278,53 +281,54 @@ def callback_message(callback):
                         bot.send_message(message.chat.id, 'Неправильный формат ввода')
                         action(message)
                 else:
+                    #print(3)
                     bot.send_message(message.chat.id, 'Неправильный формат ввода')
                     action(message)
         def process_name(message):
+            for len_list in range(len(list_of_inserts)):
+                if list_of_inserts[len_list][0] == message.chat.id:
+                    list_of_inserts[len_list][2] = message.text.strip()
+            btn_skip2 = types.KeyboardButton('Пропустить ввод телефона')
+            markup2 = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup2.add(btn_skip2)
+            msg = bot.reply_to(message, 'Введите номер телефона', reply_markup=markup2)
+            bot.register_next_step_handler(msg, process_phone)
+        def process_phone(message):
+            if (message.text == 'Пропустить ввод телефона'):
                 for len_list in range(len(list_of_inserts)):
                     if list_of_inserts[len_list][0] == message.chat.id:
-                        list_of_inserts[len_list][2] = message.text.strip()
-
-                msg = bot.reply_to(message, 'Введите номер телефона', reply_markup=markup1)
-                bot.register_next_step_handler(msg, process_phone)
-        def process_phone(message):
-            markup2 = types.ReplyKeyboardMarkup(resize_keyboard=True)
-            btn_skip2 = types.KeyboardButton('Пропустить ввод телефона')
-            markup2.add(btn_skip2)
-            if (message.text == 'Пропустить ввод телефона'):
-                global phone
-                phone = ''
-                process_email(message)
+                        list_of_inserts[len_list][3] = ''
+                        #process_email(message)
             else:
                 for len_list in range(len(list_of_inserts)):
                     if list_of_inserts[len_list][0] == message.chat.id:
                         list_of_inserts[len_list][3] = message.text.strip()
-
-                msg = bot.reply_to(message, 'Введите почту')
-                bot.register_next_step_handler(msg, process_email)
-        def process_email(message):
-            markup3 = types.ReplyKeyboardMarkup(resize_keyboard=True)
             btn_skip3 = types.KeyboardButton('Пропустить ввод почты')
-            markup3.add(btn_skip3)
+            markup7 = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup7.add(btn_skip3)
+            msg = bot.reply_to(message, 'Введите почту', reply_markup=markup7)
+            bot.register_next_step_handler(msg, process_email)
+        def process_email(message):
             if (message.text ==  'Пропустить ввод почты'):
-                global email
-                email = ''
-                process_information(message)
+                for len_list in range(len(list_of_inserts)):
+                    if list_of_inserts[len_list][0] == message.chat.id:
+                        list_of_inserts[len_list][4] = ''
+                        #process_information(message)
             else:
                 for len_list in range(len(list_of_inserts)):
                     if list_of_inserts[len_list][0] == message.chat.id:
                         list_of_inserts[len_list][4] = message.text.strip()
-
-                msg = bot.reply_to(message, 'Введите краткую информацию о человеке')
-                bot.register_next_step_handler(msg, process_information)
-
-        def process_information(message):
             markup4 = types.ReplyKeyboardMarkup(resize_keyboard=True)
             btn_skip4 = types.KeyboardButton('Пропустить ввод информации')
             markup4.add(btn_skip4)
+            msg = bot.reply_to(message, 'Введите краткую информацию о человеке', reply_markup=markup4)
+            bot.register_next_step_handler(msg, process_information)
+
+        def process_information(message):
             if (message.text == 'Пропустить ввод информации'):
-                global information
-                information = ''
+                for len_list in range(len(list_of_inserts)):
+                    if list_of_inserts[len_list][0] == message.chat.id:
+                        list_of_inserts[len_list][5] = ''
             else:
                 for len_list in range(len(list_of_inserts)):
                     if list_of_inserts[len_list][0] == message.chat.id:
@@ -339,8 +343,9 @@ def callback_message(callback):
                         cur.execute(
                             "INSERT INTO public.users(name, date_of_bd, chat_id, phone, email, information) VALUES ('%s', to_date('%s','dd.mm.yyyy'), '%s', '%s', '%s', '%s')" % (
                         list_of_inserts[len_list][2], list_of_inserts[len_list][1], list_of_inserts[len_list][0], list_of_inserts[len_list][3], list_of_inserts[len_list][4], list_of_inserts[len_list][5]))
-                        bot.reply_to(message, 'Добавлен пользователь: ' + list_of_inserts[len_list][2])
-                        list_of_inserts.pop(len_list)
+                        bot.reply_to(message, 'Добавлен пользователь: ' + list_of_inserts[len_list][2], reply_markup=types.ReplyKeyboardRemove())
+                    list_of_inserts.pop(len_list)
+                    print('конец')
 
                 connection.commit()
                 cur.close()
@@ -356,16 +361,14 @@ def callback_message(callback):
         try:
             connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7', host='158.160.137.15')
             cur = connection.cursor()
-            cur.execute("SELECT name, to_char(date_of_bd,'dd.mm.yyyy') FROM public.users where chat_id ='%s' " % (callback.message.chat.id))
+            cur.execute("SELECT name, to_char(date_of_bd,'dd.mm.yyyy') FROM public.users where chat_id ='%s' order by name " % (callback.message.chat.id))
             users = cur.fetchall()
+            s = ''
             if len(users) != 0:
                 for user in users:
-                    s = ' '
                     for name in user:
-                        s = s + ' ' + name
-                        s = s + '\n'
-                    if s != ' ':
-                        bot.send_message(callback.message.chat.id, s)
+                        s = s + ' ' + name + '\n'
+                bot.send_message(callback.message.chat.id, s)
             else:
                 bot.send_message(callback.message.chat.id, 'Список пуст!')
             cur.close()
