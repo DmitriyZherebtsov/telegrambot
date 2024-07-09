@@ -333,23 +333,34 @@ def callback_message(callback):
                 for len_list in range(len(list_of_inserts)):
                     if list_of_inserts[len_list][0] == message.chat.id:
                         list_of_inserts[len_list][5] = message.text.strip()
+            add_record_into_db(message)
 
+        def add_record_into_db(message):
             try:
                 connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
                                               host='158.160.137.15')
+                print(datetime.datetime.now(), message.chat.id, 'connect')
                 cur = connection.cursor()
+                print(datetime.datetime.now(), message.chat.id, 'cursor')
                 for len_list in range(len(list_of_inserts)):
+                    print(datetime.datetime.now(), message.chat.id, 'for', list_of_inserts)
                     if list_of_inserts[len_list][0] == message.chat.id:
+                        print(datetime.datetime.now(), message.chat.id, 'if')
                         cur.execute(
                             "INSERT INTO public.users(name, date_of_bd, chat_id, phone, email, information) VALUES ('%s', to_date('%s','dd.mm.yyyy'), '%s', '%s', '%s', '%s')" % (
                         list_of_inserts[len_list][2], list_of_inserts[len_list][1], list_of_inserts[len_list][0], list_of_inserts[len_list][3], list_of_inserts[len_list][4], list_of_inserts[len_list][5]))
                         bot.reply_to(message, 'Добавлен пользователь: ' + list_of_inserts[len_list][2], reply_markup=types.ReplyKeyboardRemove())
-                    list_of_inserts.pop(len_list)
-                    print('конец')
+                        print(datetime.datetime.now(), message.chat.id, 'insert')
+                        list_of_inserts.pop(len_list)
+                        print(datetime.datetime.now(), message.chat.id, 'pop')
+                print(datetime.datetime.now(), message.chat.id, 'добавлен пользователь')
 
                 connection.commit()
+                print(datetime.datetime.now(), message.chat.id, 'commit')
                 cur.close()
+                print(datetime.datetime.now(), message.chat.id, 'cur.close')
                 connection.close()
+                print(datetime.datetime.now(), message.chat.id, 'conn.close')
                 action(message)
             except Exception:
                 bot.send_message(message.chat.id, 'Что-то пошло не так. Скорее всего, что-то не так с вводимыми данными.')
