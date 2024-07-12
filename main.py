@@ -41,9 +41,9 @@ import psycopg2
 try:
     connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7', host='158.160.137.15')
     cur = connection.cursor()
-    cur.execute('CREATE TABLE IF NOT EXISTS public.users(name varchar(100), date_of_bd date, chat_id varchar(100), phone varchar(100), email varchar(100), information varchar(200))')
-    cur.execute('CREATE TABLE IF NOT EXISTS public.send_time(name varchar (100), time varchar(50), chat_id varchar(100))')
-    cur.execute('CREATE TABLE IF NOT EXISTS public.review(chat_id varchar(100), review varchar(1000))')
+    cur.execute('CREATE TABLE IF NOT EXISTS public.users(name varchar(100), date_of_bd date, chat_id varchar(100), phone varchar(100), email varchar(100), information varchar(200), update_dt date default current_timestamp)')
+    cur.execute('CREATE TABLE IF NOT EXISTS public.send_time(name varchar (100), time varchar(50), chat_id varchar(100), update_dt date default current_timestamp)')
+    cur.execute('CREATE TABLE IF NOT EXISTS public.review(chat_id varchar(100), review varchar(1000), update_dt date default current_timestamp)')
     connection.commit()
     cur.close()
     connection.close()
@@ -99,6 +99,25 @@ def action(message: types.Message):
 
 @bot.callback_query_handler(func=lambda callback: True)
 def callback_message(callback):
+    if callback.data == 'review':
+        bot.send_message(callback.message.chat.id,
+                         'Оставь свой отзыв о боте, пожалуйста! Ваше мнение очень важно для нас)')
+
+        @bot.message_handler(content_types=['text'])
+        def add_feedback(message):
+            try:
+                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
+                                              host='158.160.137.15')
+                cur = connection.cursor()
+                cur.execute("INSERT INTO public.review(chat_id, review) VALUES ('%s', '%s')" % (message.chat.id, message.text.strip()))
+                connection.commit()
+                cur.close()
+                connection.close()
+                bot.send_message(message.chat.id, 'Спасибо за Ваш отзыв!')
+                action(message)
+            except Exception:
+                bot.send_message(callback.message.chat.id, 'Что-то пошло не так:(')
+                action(message)
     if callback.data == 'choose_time':
         bot.send_message(callback.message.chat.id, 'Напишите удобное время отправки напоминания в формате hh:mm')
 
@@ -110,7 +129,7 @@ def callback_message(callback):
                 connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
                                               host='158.160.137.15')
                 cur = connection.cursor()
-                cur.execute("UPDATE public.send_time SET time = '%s'  WHERE chat_id ='%s' " % (
+                cur.execute("UPDATE public.send_time SET update_dt = current_timestamp, time = '%s'  WHERE chat_id ='%s' " % (
                 message.text.strip(), message.chat.id))
                 connection.commit()
                 cur.close()
@@ -172,7 +191,7 @@ def callback_message(callback):
                                           host='158.160.137.15')
             cur = connection.cursor()
             cur.execute(
-                "UPDATE public.users SET name = '%s' where id = '%s' " % (message.text.strip(), callback.data[7:]))
+                "UPDATE public.users SET update_dt = current_timestamp, name = '%s' where id = '%s' " % (message.text.strip(), callback.data[7:]))
             bot.send_message(callback.message.chat.id, 'Имя пользователя изменено успешно!')
             connection.commit()
             cur.close()
@@ -199,7 +218,7 @@ def callback_message(callback):
                                                   host='158.160.137.15')
                     cur = connection.cursor()
                     cur.execute(
-                        "UPDATE public.users SET to_char(date_of_bd,'dd.mm.yyyy') = '%s' where id = '%s' " % (
+                        "UPDATE public.users SET update_dt = current_timestamp, to_char(date_of_bd,'dd.mm.yyyy') = '%s' where id = '%s' " % (
                         message.text.strip(), callback.data[13:]))
                     bot.send_message(callback.message.chat.id, 'Дата рождения пользователя изменена успешно!')
                     connection.commit()
@@ -219,7 +238,7 @@ def callback_message(callback):
                                           host='158.160.137.15')
             cur = connection.cursor()
             cur.execute(
-                "UPDATE public.users SET phone = '%s' where id = '%s' " % (message.text.strip(), callback.data[8:]))
+                "UPDATE public.users SET update_dt = current_timestamp, phone = '%s' where id = '%s' " % (message.text.strip(), callback.data[8:]))
             bot.send_message(callback.message.chat.id, 'Телефон пользователя изменен успешно!')
             connection.commit()
             cur.close()
@@ -234,7 +253,7 @@ def callback_message(callback):
                                           host='158.160.137.15')
             cur = connection.cursor()
             cur.execute(
-                "UPDATE public.users SET email = '%s' where id = '%s' " % (message.text.strip(), callback.data[8:]))
+                "UPDATE public.users SET update_dt = current_timestamp, email = '%s' where id = '%s' " % (message.text.strip(), callback.data[8:]))
             bot.send_message(callback.message.chat.id, 'Почта пользователя изменена успешно!')
             connection.commit()
             cur.close()
@@ -249,7 +268,7 @@ def callback_message(callback):
                                           host='158.160.137.15')
             cur = connection.cursor()
             cur.execute(
-                "UPDATE public.users SET information = '%s' where id = '%s' " % (message.text.strip(), callback.data[14:]))
+                "UPDATE public.users SET update_dt = current_timestamp, information = '%s' where id = '%s' " % (message.text.strip(), callback.data[14:]))
             bot.send_message(callback.message.chat.id, 'Информация о пользователу изменена успешно!')
             connection.commit()
             cur.close()
