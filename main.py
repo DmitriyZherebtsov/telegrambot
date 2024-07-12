@@ -36,13 +36,14 @@ email = None
 information = None
 message_chat_id = None
 list_for_update = []
-list_of_inserts = [] #словарь для вставок пользователей. 1 пользователь = 1 запись
+list_of_inserts = {} #словарь для вставок пользователей. 1 пользователь = 1 запись
 import psycopg2
 try:
     connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7', host='158.160.137.15')
     cur = connection.cursor()
     cur.execute('CREATE TABLE IF NOT EXISTS public.users(name varchar(100), date_of_bd date, chat_id varchar(100), phone varchar(100), email varchar(100), information varchar(200))')
     cur.execute('CREATE TABLE IF NOT EXISTS public.send_time(name varchar (100), time varchar(50), chat_id varchar(100))')
+    cur.execute('CREATE TABLE IF NOT EXISTS public.review(chat_id varchar(100), review varchar(1000))')
     connection.commit()
     cur.close()
     connection.close()
@@ -91,7 +92,8 @@ def action(message: types.Message):
     btn2 = types.InlineKeyboardButton("Показать список ДР", callback_data='show bd')
     btn3 = types.InlineKeyboardButton("Изменить запись", callback_data='change_info')
     btntime = types.InlineKeyboardButton("Время отправки", callback_data='choose_time')
-    markup.add(btn1).add(btn2).add(btn3).add(btntime)
+    btn_review = types.InlineKeyboardButton("Оставить отзыв", callback_data='review')
+    markup.add(btn1).add(btn2).add(btn3).add(btntime).add(btn_review)
     global user_id_tg
     bot.send_message(message.chat.id, 'Выберите действие:', reply_markup=markup)
 
@@ -255,23 +257,15 @@ def callback_message(callback):
             action(callback.message)
     if callback.data == 'add bd':
         global list_of_inserts
-        for len_list in range(len(list_of_inserts)):
-            if list_of_inserts[len_list][0] == callback.message.chat.id:
-                list_of_inserts.pop(len_list)
-        list_of_inserts.append([callback.message.chat.id, '', '', '', '', ''])
+        list_of_inserts[callback.message.chat.id] = ['','','','','']
         #атрибуты: chat.id, date_of_bd, name, phone, email, information
         markup1 = types.ReplyKeyboardMarkup(resize_keyboard=True)
         bot.send_message(callback.message.chat.id, 'Введите дату в формате дд.мм.гггг', reply_markup=markup1)
         @bot.message_handler(content_types=['text'])
         def handle_bd(message):
-                #print(0)
                 pattern = re.compile(r'^([0-9]{2}\.[0-9]{2}\.[0-9]{4})$')
-                #print(1)
                 if pattern.match(message.text.strip()):
-                    #print(2)
-                    for len_list in range (len(list_of_inserts)):
-                        if list_of_inserts[len_list][0] == message.chat.id:
-                            list_of_inserts[len_list][1] = message.text.strip()
+                    list_of_inserts[message.chat.id][0] = message.text.strip()
                     try:
                         dateparts = message.text.strip().split('.')
                         dateobj = datetime.date(int(dateparts[2]),int(dateparts[1]),int(dateparts[0]))
@@ -281,13 +275,10 @@ def callback_message(callback):
                         bot.send_message(message.chat.id, 'Неправильный формат ввода')
                         action(message)
                 else:
-                    #print(3)
                     bot.send_message(message.chat.id, 'Неправильный формат ввода')
                     action(message)
         def process_name(message):
-            for len_list in range(len(list_of_inserts)):
-                if list_of_inserts[len_list][0] == message.chat.id:
-                    list_of_inserts[len_list][2] = message.text.strip()
+            list_of_inserts[message.chat.id][1] = message.text.strip()
             btn_skip2 = types.KeyboardButton('Пропустить ввод телефона')
             markup2 = types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup2.add(btn_skip2)
@@ -295,14 +286,9 @@ def callback_message(callback):
             bot.register_next_step_handler(msg, process_phone)
         def process_phone(message):
             if (message.text == 'Пропустить ввод телефона'):
-                for len_list in range(len(list_of_inserts)):
-                    if list_of_inserts[len_list][0] == message.chat.id:
-                        list_of_inserts[len_list][3] = ''
-                        #process_email(message)
+                list_of_inserts[message.chat.id][2] = ''
             else:
-                for len_list in range(len(list_of_inserts)):
-                    if list_of_inserts[len_list][0] == message.chat.id:
-                        list_of_inserts[len_list][3] = message.text.strip()
+                list_of_inserts[message.chat.id][2] = message.text.strip()
             btn_skip3 = types.KeyboardButton('Пропустить ввод почты')
             markup7 = types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup7.add(btn_skip3)
@@ -310,14 +296,9 @@ def callback_message(callback):
             bot.register_next_step_handler(msg, process_email)
         def process_email(message):
             if (message.text ==  'Пропустить ввод почты'):
-                for len_list in range(len(list_of_inserts)):
-                    if list_of_inserts[len_list][0] == message.chat.id:
-                        list_of_inserts[len_list][4] = ''
-                        #process_information(message)
+                list_of_inserts[message.chat.id][3] = ''
             else:
-                for len_list in range(len(list_of_inserts)):
-                    if list_of_inserts[len_list][0] == message.chat.id:
-                        list_of_inserts[len_list][4] = message.text.strip()
+                list_of_inserts[message.chat.id][3] = message.text.strip()
             markup4 = types.ReplyKeyboardMarkup(resize_keyboard=True)
             btn_skip4 = types.KeyboardButton('Пропустить ввод информации')
             markup4.add(btn_skip4)
@@ -326,41 +307,24 @@ def callback_message(callback):
 
         def process_information(message):
             if (message.text == 'Пропустить ввод информации'):
-                for len_list in range(len(list_of_inserts)):
-                    if list_of_inserts[len_list][0] == message.chat.id:
-                        list_of_inserts[len_list][5] = ''
+                list_of_inserts[message.chat.id][4] = ''
             else:
-                for len_list in range(len(list_of_inserts)):
-                    if list_of_inserts[len_list][0] == message.chat.id:
-                        list_of_inserts[len_list][5] = message.text.strip()
+                list_of_inserts[message.chat.id][4] = message.text.strip()
             add_record_into_db(message)
 
         def add_record_into_db(message):
             try:
                 connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
                                               host='158.160.137.15')
-                print(datetime.datetime.now(), message.chat.id, 'connect')
                 cur = connection.cursor()
-                print(datetime.datetime.now(), message.chat.id, 'cursor')
-                for len_list in range(len(list_of_inserts)):
-                    print(datetime.datetime.now(), message.chat.id, 'for', list_of_inserts)
-                    if list_of_inserts[len_list][0] == message.chat.id:
-                        print(datetime.datetime.now(), message.chat.id, 'if')
-                        cur.execute(
-                            "INSERT INTO public.users(name, date_of_bd, chat_id, phone, email, information) VALUES ('%s', to_date('%s','dd.mm.yyyy'), '%s', '%s', '%s', '%s')" % (
-                        list_of_inserts[len_list][2], list_of_inserts[len_list][1], list_of_inserts[len_list][0], list_of_inserts[len_list][3], list_of_inserts[len_list][4], list_of_inserts[len_list][5]))
-                        bot.reply_to(message, 'Добавлен пользователь: ' + list_of_inserts[len_list][2], reply_markup=types.ReplyKeyboardRemove())
-                        print(datetime.datetime.now(), message.chat.id, 'insert')
-                        list_of_inserts.pop(len_list)
-                        print(datetime.datetime.now(), message.chat.id, 'pop')
-                print(datetime.datetime.now(), message.chat.id, 'добавлен пользователь')
-
+                cur.execute(
+                    "INSERT INTO public.users(name, date_of_bd, chat_id, phone, email, information) VALUES ('%s', to_date('%s','dd.mm.yyyy'), '%s', '%s', '%s', '%s')" % (
+                    list_of_inserts[message.chat.id][1], list_of_inserts[message.chat.id][0], message.chat.id, list_of_inserts[message.chat.id][2], list_of_inserts[message.chat.id][3], list_of_inserts[message.chat.id][4]))
+                bot.reply_to(message, 'Добавлен пользователь: ' + list_of_inserts[message.chat.id][1], reply_markup=types.ReplyKeyboardRemove())
+                list_of_inserts[message.chat.id] = ['','','','','']
                 connection.commit()
-                print(datetime.datetime.now(), message.chat.id, 'commit')
                 cur.close()
-                print(datetime.datetime.now(), message.chat.id, 'cur.close')
                 connection.close()
-                print(datetime.datetime.now(), message.chat.id, 'conn.close')
                 action(message)
             except Exception:
                 bot.send_message(message.chat.id, 'Что-то пошло не так. Скорее всего, что-то не так с вводимыми данными.')
@@ -377,8 +341,11 @@ def callback_message(callback):
             s = ''
             if len(users) != 0:
                 for user in users:
-                    for name in user:
-                        s = s + ' ' + name + '\n'
+                    format_str = ''
+                    format_str = format_str + user[0] + ' ' + ':'
+                    format_str = format_str.ljust(50, '_')
+                    format_str = format_str + user[1] + '\n'
+                    s = s + format_str
                 bot.send_message(callback.message.chat.id, s)
             else:
                 bot.send_message(callback.message.chat.id, 'Список пуст!')
