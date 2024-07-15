@@ -360,11 +360,8 @@ def callback_message(callback):
             s = ''
             if len(users) != 0:
                 for user in users:
-                    format_str = ''
-                    format_str = format_str + user[0] + ' ' + ':'
-                    format_str = format_str.ljust(50, '_')
-                    format_str = format_str + user[1] + '\n'
-                    s = s + format_str
+                    s = s + user[1] + ' ' + ':' + ' '
+                    s = s + user[0] + '\n'
                 bot.send_message(callback.message.chat.id, s)
             else:
                 bot.send_message(callback.message.chat.id, 'Список пуст!')
