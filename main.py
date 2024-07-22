@@ -10,6 +10,8 @@ from threading import Thread
 from time import sleep
 import telebot
 from telebot import types
+import psycopg2
+import handlers_def
 def schedule_checker():
     while True:
         schedule.run_pending()
@@ -37,7 +39,6 @@ information = None
 message_chat_id = None
 list_for_update = []
 list_of_inserts = {} #словарь для вставок пользователей. 1 пользователь = 1 запись
-import psycopg2
 try:
     connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7', host='158.160.137.15')
     cur = connection.cursor()
@@ -79,66 +80,22 @@ def start(message):
             '@poluvna \n'
             '@Dmitry_Zherebtsov', parse_mode = "HTML").message_id
         bot.pin_chat_message(chat_id=message.chat.id, message_id=to_pin)
-        action(message)
+        handlers_def.action(message)
     except Exception:
         bot.send_message(message.chat.id, 'Что-то пошло не так. Проблемы на нашей стороне.')
-        action(message)
-
-
-@bot.message_handler(commands=['action'])
-def action(message: types.Message):
-    markup = types.InlineKeyboardMarkup()
-    btn1 = types.InlineKeyboardButton("Внесите ДР", callback_data='add bd')
-    btn2 = types.InlineKeyboardButton("Показать список ДР", callback_data='show bd')
-    btn3 = types.InlineKeyboardButton("Изменить запись", callback_data='change_info')
-    btntime = types.InlineKeyboardButton("Время отправки", callback_data='choose_time')
-    btn_review = types.InlineKeyboardButton("Оставить отзыв", callback_data='review')
-    markup.add(btn1).add(btn2).add(btn3).add(btntime).add(btn_review)
-    global user_id_tg
-    bot.send_message(message.chat.id, 'Выберите действие:', reply_markup=markup)
+        handlers_def.action(message)
 
 @bot.callback_query_handler(func=lambda callback: True)
 def callback_message(callback):
     if callback.data == 'review':
         bot.send_message(callback.message.chat.id,
                          'Оставь свой отзыв о боте, пожалуйста! Ваше мнение очень важно для нас)')
-
-        @bot.message_handler(content_types=['text'])
-        def add_feedback(message):
-            try:
-                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                              host='158.160.137.15')
-                cur = connection.cursor()
-                cur.execute("INSERT INTO public.review(chat_id, review) VALUES ('%s', '%s')" % (message.chat.id, message.text.strip()))
-                connection.commit()
-                cur.close()
-                connection.close()
-                bot.send_message(message.chat.id, 'Спасибо за Ваш отзыв!')
-                action(message)
-            except Exception:
-                bot.send_message(callback.message.chat.id, 'Что-то пошло не так:(')
-                action(message)
+        bot.register_next_step_handler(callback.message, handlers_def.add_feedback)
     if callback.data == 'choose_time':
         bot.send_message(callback.message.chat.id, 'Напишите удобное время отправки напоминания в формате hh:mm')
 
-        @bot.message_handler(content_types=['text'])
-        def change_time(message):
-            #TODO: проверить формат времени (:)
-            try:
-                time.strptime(message.text.strip(), '%H:%M')
-                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                              host='158.160.137.15')
-                cur = connection.cursor()
-                cur.execute("UPDATE public.send_time SET update_dt = current_timestamp, time = '%s'  WHERE chat_id ='%s' " % (
-                message.text.strip(), message.chat.id))
-                connection.commit()
-                cur.close()
-                connection.close()
-                bot.send_message(message.chat.id, 'Время изменено успешно')
-                action(message)
-            except ValueError:
-                bot.send_message(message.chat.id, 'Что-то пошло не так. Попробуйте другие данные.')
-                action(message)
+        bot.register_next_step_handler(callback.message, handlers_def.change_time)
+
     if callback.data == 'change_info':
             connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
                                           host='158.160.137.15')
@@ -153,7 +110,7 @@ def callback_message(callback):
                 bot.send_message(callback.message.chat.id, 'Выберите запись для изменения:', reply_markup=markup_change)
             else:
                 bot.send_message(callback.message.chat.id, 'У вас нет добавленных пользователей')
-                action(callback.message)
+                handlers_def.action(callback.message)
             cur.close()
             connection.close()
     #TODO: подумать как выводить пользователя из режима изменения записей. наверное, главное меню (кнопка)
@@ -177,36 +134,36 @@ def callback_message(callback):
             bot.send_message(callback.message.chat.id, 'Выберите запись для изменения:', reply_markup=markup3)
         else:
             bot.send_message(callback.message.chat.id, 'Что-то пошло не так')
-            action(callback.message)
+            handlers_def.action(callback.message)
         cur.close()
         connection.close()
     if callback.data == "menu":
-        action(callback.message)
+        handlers_def.action(callback.message)
     if "NP_" in callback.data and "name" in callback.data:
         bot.send_message(callback.message.chat.id, 'Введите новое значение')
 
-        @bot.message_handler(content_types=['text'])
+
+
         def change_name(message):
-            connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                          host='158.160.137.15')
-            cur = connection.cursor()
-            cur.execute(
-                "UPDATE public.users SET update_dt = current_timestamp, name = '%s' where id = '%s' " % (message.text.strip(), callback.data[7:]))
-            bot.send_message(callback.message.chat.id, 'Имя пользователя изменено успешно!')
-            connection.commit()
-            cur.close()
-            connection.close()
-            markup_main2 = types.InlineKeyboardMarkup()
-            btn_main = types.InlineKeyboardButton("Вернуться в главное меню", callback_data='main')
-            btn_change_other = types.InlineKeyboardButton("Вернуться к записям для изменений", callback_data='back')
-            markup_main2.add(btn_main).add(btn_change_other)
-            bot.send_message(callback.message.chat.id, 'Выберите действие:', reply_markup=markup_main2)
-            if callback.data == "main":
-                action(message)
+            try:
+                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
+                                              host='158.160.137.15')
+                cur = connection.cursor()
+                cur.execute(
+                    "UPDATE public.users SET update_dt = current_timestamp, name = '%s' where id = '%s' " % (
+                    message.text.strip(), callback.data[7:]))
+                bot.send_message(callback.message.chat.id, 'Имя пользователя изменено успешно!')
+                connection.commit()
+                cur.close()
+                connection.close()
+                handlers_def.action(message)
+            except Exception:
+                bot.send_message(callback.message.chat.id, 'Не удалость подключиться к базе(')
+                handlers_def.action(message)
             #TODO: прописать возвращение к выбору записей для изменения
+        bot.register_next_step_handler(callback.message, change_name)
     if "NP_" in callback.data and "date_of_bd" in callback.data:
         bot.send_message(callback.message.chat.id, 'Введите новое значение')
-        @bot.message_handler(content_types=['text'])
         def change_date_of_bd(message):
             pattern = re.compile(r'^([0-9]{2}\.[0-9]{2}\.[0-9]{4})$')
 
@@ -224,63 +181,78 @@ def callback_message(callback):
                     connection.commit()
                     cur.close()
                     connection.close()
-                    action(message)
+                    handlers_def.action(message)
                 except Exception:
                     bot.send_message(callback.message.chat.id, 'Неправильный формат ввода')
-                    action(message)
+                    handlers_def.action(message)
+
+        bot.register_next_step_handler(callback.message, change_date_of_bd)
 
     if "NP_" in callback.data and "phone" in callback.data:
         bot.send_message(callback.message.chat.id, 'Введите новое значение')
-
-        @bot.message_handler(content_types=['text'])
         def change_phone(message):
-            connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                          host='158.160.137.15')
-            cur = connection.cursor()
-            cur.execute(
-                "UPDATE public.users SET update_dt = current_timestamp, phone = '%s' where id = '%s' " % (message.text.strip(), callback.data[8:]))
-            bot.send_message(callback.message.chat.id, 'Телефон пользователя изменен успешно!')
-            connection.commit()
-            cur.close()
-            connection.close()
-            action(callback.message)
+            try:
+                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
+                                              host='158.160.137.15')
+                cur = connection.cursor()
+                cur.execute(
+                    "UPDATE public.users SET update_dt = current_timestamp, phone = '%s' where id = '%s' " % (message.text.strip(), callback.data[8:]))
+                bot.send_message(callback.message.chat.id, 'Телефон пользователя изменен успешно!')
+                connection.commit()
+                cur.close()
+                connection.close()
+                handlers_def.action(callback.message)
+            except Exception:
+                bot.send_message(callback.message.chat.id, 'Не удалость подключиться к базе(')
+                handlers_def.action(message)
+
+        bot.register_next_step_handler(callback.message, change_phone)
     if "NP_" in callback.data and "email" in callback.data:
         bot.send_message(callback.message.chat.id, 'Введите новое значение')
 
-        @bot.message_handler(content_types=['text'])
         def change_email(message):
-            connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                          host='158.160.137.15')
-            cur = connection.cursor()
-            cur.execute(
-                "UPDATE public.users SET update_dt = current_timestamp, email = '%s' where id = '%s' " % (message.text.strip(), callback.data[8:]))
-            bot.send_message(callback.message.chat.id, 'Почта пользователя изменена успешно!')
-            connection.commit()
-            cur.close()
-            connection.close()
-            action(callback.message)
+            try:
+                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
+                                              host='158.160.137.15')
+                cur = connection.cursor()
+                cur.execute(
+                    "UPDATE public.users SET update_dt = current_timestamp, email = '%s' where id = '%s' " % (message.text.strip(), callback.data[8:]))
+                bot.send_message(callback.message.chat.id, 'Почта пользователя изменена успешно!')
+                connection.commit()
+                cur.close()
+                connection.close()
+                handlers_def.action(callback.message)
+            except Exception:
+                bot.send_message(callback.message.chat.id, 'Не удалость подключиться к базе(')
+                handlers_def.action(message)
+
+        bot.register_next_step_handler(callback.message, change_email)
     if "NP_" in callback.data and "information" in callback.data:
         bot.send_message(callback.message.chat.id, 'Введите новое значение')
-
-        @bot.message_handler(content_types=['text'])
         def change_information(message):
-            connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                          host='158.160.137.15')
-            cur = connection.cursor()
-            cur.execute(
-                "UPDATE public.users SET update_dt = current_timestamp, information = '%s' where id = '%s' " % (message.text.strip(), callback.data[14:]))
-            bot.send_message(callback.message.chat.id, 'Информация о пользователу изменена успешно!')
-            connection.commit()
-            cur.close()
-            connection.close()
-            action(callback.message)
+            try:
+                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
+                                              host='158.160.137.15')
+                cur = connection.cursor()
+                cur.execute(
+                    "UPDATE public.users SET update_dt = current_timestamp, information = '%s' where id = '%s' " % (message.text.strip(), callback.data[14:]))
+                bot.send_message(callback.message.chat.id, 'Информация о пользователу изменена успешно!')
+                connection.commit()
+                cur.close()
+                connection.close()
+                handlers_def.action(callback.message)
+            except Exception:
+                bot.send_message(callback.message.chat.id, 'Не удалость подключиться к базе(')
+                handlers_def.action(message)
+
+
+        bot.register_next_step_handler(callback.message, change_information)
     if callback.data == 'add bd':
         global list_of_inserts
         list_of_inserts[callback.message.chat.id] = ['','','','','']
         #атрибуты: chat.id, date_of_bd, name, phone, email, information
         markup1 = types.ReplyKeyboardMarkup(resize_keyboard=True)
         bot.send_message(callback.message.chat.id, 'Введите дату в формате дд.мм.гггг', reply_markup=markup1)
-        @bot.message_handler(content_types=['text'])
         def handle_bd(message):
                 pattern = re.compile(r'^([0-9]{2}\.[0-9]{2}\.[0-9]{4})$')
                 if pattern.match(message.text.strip()):
@@ -292,10 +264,12 @@ def callback_message(callback):
                         bot.register_next_step_handler(msg, process_name)
                     except Exception:
                         bot.send_message(message.chat.id, 'Неправильный формат ввода')
-                        action(message)
+                        handlers_def.action(message)
                 else:
                     bot.send_message(message.chat.id, 'Неправильный формат ввода')
-                    action(message)
+                    handlers_def.action(message)
+
+        bot.register_next_step_handler(callback.message, handle_bd)
         def process_name(message):
             list_of_inserts[message.chat.id][1] = message.text.strip()
             btn_skip2 = types.KeyboardButton('Пропустить ввод телефона')
@@ -344,10 +318,10 @@ def callback_message(callback):
                 connection.commit()
                 cur.close()
                 connection.close()
-                action(message)
+                handlers_def.action(message)
             except Exception:
                 bot.send_message(message.chat.id, 'Что-то пошло не так. Скорее всего, что-то не так с вводимыми данными.')
-                action(message)
+                handlers_def.action(message)
 
 
 
@@ -367,10 +341,10 @@ def callback_message(callback):
                 bot.send_message(callback.message.chat.id, 'Список пуст!')
             cur.close()
             connection.close()
-            action(callback.message)
+            handlers_def.action(callback.message)
         except Exception:
             bot.send_message(callback.message.chat.id, 'Что-то пошло не так :(')
-            action(callback.message)
+            handlers_def.action(callback.message)
 
 if __name__ == "__main__":
     schedule.every().minute.do(function_to_run)
