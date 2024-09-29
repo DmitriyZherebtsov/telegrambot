@@ -4,32 +4,34 @@
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import schedule
 import re
-import time
 import datetime
 from threading import Thread
+import time
 from time import sleep
 import telebot
 from telebot import types
 import psycopg2
 import handlers_def
+import gpt_def
+import config
 def schedule_checker():
     while True:
         schedule.run_pending()
         sleep(1)
 def function_to_run():
     try:
-        connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7', host='158.160.137.15')
+        connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
         curs = connection.cursor()
-        curs.execute(" SELECT u.name, st.chat_id FROM public.send_time st JOIN public.users u ON u.chat_id = st.chat_id where extract(day from u.date_of_bd) = extract(day from current_timestamp) and extract(month from u.date_of_bd) = extract(month from current_timestamp) and extract(hour from to_timestamp(st.time,'HH24:MI')) = extract(hour from current_timestamp) and extract(minute from to_timestamp(st.time,'HH24:MI')) = extract(minute from current_timestamp) ")
+        curs.execute(" SELECT u.name, cast(date_part('year', age(u.date_of_bd)) as text), u.information, st.chat_id FROM memento.send_time st JOIN memento.users u ON u.chat_id = st.chat_id where extract(day from u.date_of_bd) = extract(day from current_timestamp) and extract(month from u.date_of_bd) = extract(month from current_timestamp) and extract(hour from to_timestamp(st.time,'HH24:MI')) = extract(hour from current_timestamp) and extract(minute from to_timestamp(st.time,'HH24:MI')) = extract(minute from current_timestamp) ")
         users1 = curs.fetchall()
         for user in users1:
-            bot.send_message(user[1], 'Не забудьте поздравить этого человека с др:' + user[0])
+            bot.send_message(user[3], gpt_def.conn_gpt(user))
         curs.close()
         connection.close()
     except Exception:
-        bot.send_message(user[1], 'Что-то пошло не так при попытке похода в базу. ')
+        bot.send_message(user[3], 'Что-то пошло не так при попытке похода в базу. ')
 
-bot = telebot.TeleBot('6827864691:AAH2MPjAwSdaQctyiic5Z2Nbo30AQ8rxMl8')
+bot = telebot.TeleBot(config.telebot_token)
 date_of_bd = None
 chat_id_tg = None
 name = None
@@ -40,11 +42,11 @@ message_chat_id = None
 list_for_update = []
 list_of_inserts = {} #словарь для вставок пользователей. 1 пользователь = 1 запись
 try:
-    connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7', host='158.160.137.15')
+    connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
     cur = connection.cursor()
-    cur.execute('CREATE TABLE IF NOT EXISTS public.users(name varchar(100), date_of_bd date, chat_id varchar(100), phone varchar(100), email varchar(100), information varchar(200), update_dt date default current_timestamp)')
-    cur.execute('CREATE TABLE IF NOT EXISTS public.send_time(name varchar (100), time varchar(50), chat_id varchar(100), update_dt date default current_timestamp)')
-    cur.execute('CREATE TABLE IF NOT EXISTS public.review(chat_id varchar(100), review varchar(1000), update_dt date default current_timestamp)')
+    cur.execute('CREATE TABLE IF NOT EXISTS memento.users(name varchar(100), date_of_bd date, chat_id varchar(100), phone varchar(100), email varchar(100), information varchar(200), id serial4 PRIMARY KEY, update_dt date default current_timestamp)')
+    cur.execute('CREATE TABLE IF NOT EXISTS memento.send_time(name varchar (100), time varchar(50), chat_id varchar(100), update_dt date default current_timestamp)')
+    cur.execute('CREATE TABLE IF NOT EXISTS memento.review(chat_id varchar(100), review varchar(1000), update_dt date default current_timestamp)')
     connection.commit()
     cur.close()
     connection.close()
@@ -54,16 +56,16 @@ except Exception:
 def start(message):
     #TODO: сделать приветственное сообщение (функционал бота, пожертвования и тд)
     try:
-        connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7', host='158.160.137.15')
+        connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
         cur = connection.cursor()
-        cur.execute("SELECT chat_id FROM public.send_time")
+        cur.execute("SELECT chat_id FROM memento.send_time")
         send_time_chat_ids = cur.fetchall()
         chat_id_array = []
         for chat_ids in send_time_chat_ids:
             chat_id_array.append(chat_ids[0])
         if str(message.chat.id) not in chat_id_array:
             cur.execute(
-                "INSERT INTO public.send_time(time, chat_id) VALUES ('%s', '%s')" % ('9:00', message.chat.id))
+                "INSERT INTO memento.send_time(time, chat_id) VALUES ('%s', '%s')" % ('9:00', message.chat.id))
         connection.commit()
         cur.close()
         connection.close()
@@ -97,10 +99,9 @@ def callback_message(callback):
         bot.register_next_step_handler(callback.message, handlers_def.change_time)
 
     if callback.data == 'change_info':
-            connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                          host='158.160.137.15')
+            connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
             cur = connection.cursor()
-            cur.execute("SELECT name, id FROM public.users where chat_id ='%s' " % (callback.message.chat.id))
+            cur.execute("SELECT name, id FROM memento.users where chat_id ='%s' " % (callback.message.chat.id))
             list_for_update = cur.fetchall()
             if list_for_update is not None:
                 markup_change = types.InlineKeyboardMarkup()
@@ -116,10 +117,9 @@ def callback_message(callback):
     #TODO: подумать как выводить пользователя из режима изменения записей. наверное, главное меню (кнопка)
 
     if "N_" in callback.data:
-        connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                      host='158.160.137.15')
+        connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
         cur = connection.cursor()
-        cur.execute("SELECT name, to_char(date_of_bd,'dd.mm.yyyy'), phone, email, information,id FROM public.users where id = '%s' " % (callback.data[2:]))
+        cur.execute("SELECT name, to_char(date_of_bd,'dd.mm.yyyy'), phone, email, information,id FROM memento.users where id = '%s' " % (callback.data[2:]))
         list_of_attributes = cur.fetchall()
         if list_of_attributes is not None:
             markup3 = types.InlineKeyboardMarkup()
@@ -146,11 +146,10 @@ def callback_message(callback):
 
         def change_name(message):
             try:
-                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                              host='158.160.137.15')
+                connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
                 cur = connection.cursor()
                 cur.execute(
-                    "UPDATE public.users SET update_dt = current_timestamp, name = '%s' where id = '%s' " % (
+                    "UPDATE memento.users SET update_dt = current_timestamp, name = '%s' where id = '%s' " % (
                     message.text.strip(), callback.data[7:]))
                 bot.send_message(callback.message.chat.id, 'Имя пользователя изменено успешно!')
                 connection.commit()
@@ -171,11 +170,10 @@ def callback_message(callback):
                 try:
                     dateparts = callback.message.text.strip().split('.')
                     dateobj = datetime.date(int(dateparts[2]), int(dateparts[1]), int(dateparts[0]))
-                    connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                                  host='158.160.137.15')
+                    connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
                     cur = connection.cursor()
                     cur.execute(
-                        "UPDATE public.users SET update_dt = current_timestamp, to_char(date_of_bd,'dd.mm.yyyy') = '%s' where id = '%s' " % (
+                        "UPDATE memento.users SET update_dt = current_timestamp, to_char(date_of_bd,'dd.mm.yyyy') = '%s' where id = '%s' " % (
                         message.text.strip(), callback.data[13:]))
                     bot.send_message(callback.message.chat.id, 'Дата рождения пользователя изменена успешно!')
                     connection.commit()
@@ -192,11 +190,10 @@ def callback_message(callback):
         bot.send_message(callback.message.chat.id, 'Введите новое значение')
         def change_phone(message):
             try:
-                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                              host='158.160.137.15')
+                connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
                 cur = connection.cursor()
                 cur.execute(
-                    "UPDATE public.users SET update_dt = current_timestamp, phone = '%s' where id = '%s' " % (message.text.strip(), callback.data[8:]))
+                    "UPDATE memento.users SET update_dt = current_timestamp, phone = '%s' where id = '%s' " % (message.text.strip(), callback.data[8:]))
                 bot.send_message(callback.message.chat.id, 'Телефон пользователя изменен успешно!')
                 connection.commit()
                 cur.close()
@@ -212,11 +209,10 @@ def callback_message(callback):
 
         def change_email(message):
             try:
-                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                              host='158.160.137.15')
+                connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
                 cur = connection.cursor()
                 cur.execute(
-                    "UPDATE public.users SET update_dt = current_timestamp, email = '%s' where id = '%s' " % (message.text.strip(), callback.data[8:]))
+                    "UPDATE memento.users SET update_dt = current_timestamp, email = '%s' where id = '%s' " % (message.text.strip(), callback.data[8:]))
                 bot.send_message(callback.message.chat.id, 'Почта пользователя изменена успешно!')
                 connection.commit()
                 cur.close()
@@ -231,11 +227,10 @@ def callback_message(callback):
         bot.send_message(callback.message.chat.id, 'Введите новое значение')
         def change_information(message):
             try:
-                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                              host='158.160.137.15')
+                connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
                 cur = connection.cursor()
                 cur.execute(
-                    "UPDATE public.users SET update_dt = current_timestamp, information = '%s' where id = '%s' " % (message.text.strip(), callback.data[14:]))
+                    "UPDATE memento.users SET update_dt = current_timestamp, information = '%s' where id = '%s' " % (message.text.strip(), callback.data[14:]))
                 bot.send_message(callback.message.chat.id, 'Информация о пользователу изменена успешно!')
                 connection.commit()
                 cur.close()
@@ -307,11 +302,10 @@ def callback_message(callback):
 
         def add_record_into_db(message):
             try:
-                connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                              host='158.160.137.15')
+                connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
                 cur = connection.cursor()
                 cur.execute(
-                    "INSERT INTO public.users(name, date_of_bd, chat_id, phone, email, information) VALUES ('%s', to_date('%s','dd.mm.yyyy'), '%s', '%s', '%s', '%s')" % (
+                    "INSERT INTO memento.users(name, date_of_bd, chat_id, phone, email, information) VALUES ('%s', to_date('%s','dd.mm.yyyy'), '%s', '%s', '%s', '%s')" % (
                     list_of_inserts[message.chat.id][1], list_of_inserts[message.chat.id][0], message.chat.id, list_of_inserts[message.chat.id][2], list_of_inserts[message.chat.id][3], list_of_inserts[message.chat.id][4]))
                 bot.reply_to(message, 'Добавлен пользователь: ' + list_of_inserts[message.chat.id][1], reply_markup=types.ReplyKeyboardRemove())
                 list_of_inserts[message.chat.id] = ['','','','','']
@@ -327,9 +321,9 @@ def callback_message(callback):
 
     if callback.data == 'show bd':
         try:
-            connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7', host='158.160.137.15')
+            connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
             cur = connection.cursor()
-            cur.execute("SELECT name, to_char(date_of_bd,'dd.mm.yyyy') FROM public.users where chat_id ='%s' order by name " % (callback.message.chat.id))
+            cur.execute("SELECT name, to_char(date_of_bd,'dd.mm.yyyy') FROM memento.users where chat_id ='%s' order by name " % (callback.message.chat.id))
             users = cur.fetchall()
             s = ''
             if len(users) != 0:

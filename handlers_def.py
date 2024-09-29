@@ -1,14 +1,10 @@
-import psycopg2
-import schedule
-import re
+
 import time
-import datetime
-from threading import Thread
-from time import sleep
 import telebot
 from telebot import types
 import psycopg2
-bot = telebot.TeleBot('6827864691:AAH2MPjAwSdaQctyiic5Z2Nbo30AQ8rxMl8')
+import config
+bot = telebot.TeleBot(config.telebot_token)
 def action(message: types.Message):
     markup = types.InlineKeyboardMarkup()
     btn1 = types.InlineKeyboardButton("Внесите ДР", callback_data='add bd')
@@ -21,10 +17,9 @@ def action(message: types.Message):
     bot.send_message(message.chat.id, 'Выберите действие:', reply_markup=markup)
 def add_feedback(message):
     try:
-        connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                          host='158.160.137.15')
+        connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
         cur = connection.cursor()
-        cur.execute("INSERT INTO public.review(chat_id, review) VALUES ('%s', '%s')" % (
+        cur.execute("INSERT INTO memento.review(chat_id, review) VALUES ('%s', '%s')" % (
         message.chat.id, message.text.strip()))
         connection.commit()
         cur.close()
@@ -39,10 +34,9 @@ def change_time(message):
             #TODO: проверить формат времени (:)
     try:
         time.strptime(message.text.strip(), '%H:%M')
-        connection = psycopg2.connect(dbname='polluvna', user='polluvna', password='KyFPza0pFLM7',
-                                              host='158.160.137.15')
+        connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
         cur = connection.cursor()
-        cur.execute("UPDATE public.send_time SET update_dt = current_timestamp, time = '%s'  WHERE chat_id ='%s' " % (
+        cur.execute("UPDATE memento.send_time SET update_dt = current_timestamp, time = '%s'  WHERE chat_id ='%s' " % (
         message.text.strip(), message.chat.id))
         connection.commit()
         cur.close()
