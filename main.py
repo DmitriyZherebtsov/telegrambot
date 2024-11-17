@@ -28,8 +28,10 @@ def function_to_run():
             bot.send_message(user[3], gpt_def.conn_gpt(user))
         curs.close()
         connection.close()
+        handlers_def.action()
     except Exception:
         bot.send_message(user[3], 'Что-то пошло не так при попытке похода в базу. ')
+        handlers_def.action()
 
 bot = telebot.TeleBot(config.telebot_token)
 date_of_bd = None
@@ -99,6 +101,7 @@ def callback_message(callback):
         bot.register_next_step_handler(callback.message, handlers_def.change_time)
 
     if callback.data == 'change_info':
+        try:
             connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
             cur = connection.cursor()
             cur.execute("SELECT name, id FROM memento.users where chat_id ='%s' " % (callback.message.chat.id))
@@ -114,35 +117,53 @@ def callback_message(callback):
                 handlers_def.action(callback.message)
             cur.close()
             connection.close()
-    #TODO: подумать как выводить пользователя из режима изменения записей. наверное, главное меню (кнопка)
-
-    if "N_" in callback.data:
-        connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
-        cur = connection.cursor()
-        cur.execute("SELECT name, to_char(date_of_bd,'dd.mm.yyyy'), phone, email, information,id FROM memento.users where id = '%s' " % (callback.data[2:]))
-        list_of_attributes = cur.fetchall()
-        if list_of_attributes is not None:
-            markup3 = types.InlineKeyboardMarkup()
-            for list in list_of_attributes:
-                btn_change2 = types.InlineKeyboardButton('Имя: ' + list[0], callback_data="NP_" + 'name' + str(list[5]))
-                btn_change3 = types.InlineKeyboardButton('Дата рождения: ' + list[1], callback_data="NP_" + 'date_of_bd' + str(list[5]))
-                btn_change4 = types.InlineKeyboardButton('Телефон: ' + list[2], callback_data="NP_" + 'phone' + str(list[5]))
-                btn_change5 = types.InlineKeyboardButton('Почта: ' + list[3], callback_data="NP_" + 'email' + str(list[5]))
-                btn_change6 = types.InlineKeyboardButton('Информация: ' + list[4], callback_data="NP_" + 'information' + str(list[5]))
-                btn_main = types.InlineKeyboardButton('Вернуться в главное меню <<<', callback_data = "menu")
-                markup3.add(btn_change2).add(btn_change3).add(btn_change4).add(btn_change5).add(btn_change6).add(btn_main)
-            bot.send_message(callback.message.chat.id, 'Выберите запись для изменения:', reply_markup=markup3)
-        else:
+        except Exception:
             bot.send_message(callback.message.chat.id, 'Что-то пошло не так')
             handlers_def.action(callback.message)
-        cur.close()
-        connection.close()
+    if "N_" in callback.data:
+        try:
+            connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)
+            cur = connection.cursor()
+            cur.execute("SELECT name, to_char(date_of_bd,'dd.mm.yyyy'), phone, email, information,id, 'for_delete' FROM memento.users where id = '%s' " % (callback.data[2:]))
+            list_of_attributes = cur.fetchall()
+            if list_of_attributes is not None:
+                markup3 = types.InlineKeyboardMarkup()
+                for list in list_of_attributes:
+                    btn_change2 = types.InlineKeyboardButton('Имя: ' + list[0], callback_data="NP_" + 'name' + str(list[5]))
+                    btn_change3 = types.InlineKeyboardButton('Дата рождения: ' + list[1], callback_data="NP_" + 'date_of_bd' + str(list[5]))
+                    btn_change4 = types.InlineKeyboardButton('Телефон: ' + list[2], callback_data="NP_" + 'phone' + str(list[5]))
+                    btn_change5 = types.InlineKeyboardButton('Почта: ' + list[3], callback_data="NP_" + 'email' + str(list[5]))
+                    btn_change6 = types.InlineKeyboardButton('Информация: ' + list[4], callback_data="NP_" + 'information' + str(list[5]))
+                    btn_del = types.InlineKeyboardButton('Удалить запись', callback_data= "NP_" + 'delete' + str(list[5]))
+                    btn_main = types.InlineKeyboardButton('Вернуться в главное меню <<<', callback_data = "menu")
+                    markup3.add(btn_change2).add(btn_change3).add(btn_change4).add(btn_change5).add(btn_change6).add(btn_del).add(btn_main)
+                bot.send_message(callback.message.chat.id, 'Выберите запись для изменения:', reply_markup=markup3)
+            else:
+                bot.send_message(callback.message.chat.id, 'Что-то пошло не так')
+                handlers_def.action(callback.message)
+            cur.close()
+            connection.close()
+        except Exception:
+            bot.send_message(callback.message.chat.id, 'Что-то пошло не так')
+            handlers_def.action(callback.message)
+    if "NP_" in callback.data and "delete" in callback.data:
+        try:
+            connection = psycopg2.connect(dbname=config.db_name, user=config.db_user)
+            cur = connection.cursor()
+            bot.send_message(callback.message.chat.id, 'Запись' + list[0] + 'удалена!')
+            cur.execute("DELETE FROM memento.users WHERE id = '%s' " % (callback.data[9:]))
+            connection.commit()
+            cur.close()
+            connection.close()
+            bot.send_message(callback.message.chat.id, 'Запись удалена!')
+            handlers_def.action(callback.message)
+        except Exception:
+            bot.send_message(callback.message.chat.id, 'Что-то пошло не так')
+            handlers_def.action(callback.message)
     if callback.data == "menu":
         handlers_def.action(callback.message)
     if "NP_" in callback.data and "name" in callback.data:
         bot.send_message(callback.message.chat.id, 'Введите новое значение')
-
-
 
         def change_name(message):
             try:
