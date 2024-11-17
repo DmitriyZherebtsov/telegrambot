@@ -5,7 +5,8 @@ from telebot import types
 import psycopg2
 import config
 bot = telebot.TeleBot(config.telebot_token)
-def action(message: types.Message):
+
+def menu(message_chat_id):
     markup = types.InlineKeyboardMarkup()
     btn1 = types.InlineKeyboardButton("Внесите ДР", callback_data='add bd')
     btn2 = types.InlineKeyboardButton("Показать список ДР", callback_data='show bd')
@@ -13,8 +14,9 @@ def action(message: types.Message):
     btntime = types.InlineKeyboardButton("Время отправки", callback_data='choose_time')
     btn_review = types.InlineKeyboardButton("Оставить отзыв", callback_data='review')
     markup.add(btn1).add(btn2).add(btn3).add(btntime).add(btn_review)
-    global user_id_tg
-    bot.send_message(message.chat.id, 'Выберите действие:', reply_markup=markup)
+    bot.send_message(message_chat_id, 'Выберите действие:', reply_markup=markup)
+def action(message: types.Message):
+    menu(message.chat.id)
 def add_feedback(message):
     try:
         connection = psycopg2.connect(dbname = config.db_name, user= config.db_user)

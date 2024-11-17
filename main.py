@@ -13,6 +13,7 @@ from telebot import types
 import psycopg2
 import handlers_def
 import gpt_def
+import logging
 import config
 def schedule_checker():
     while True:
@@ -28,10 +29,10 @@ def function_to_run():
             bot.send_message(user[3], gpt_def.conn_gpt(user))
         curs.close()
         connection.close()
-        handlers_def.action()
+        handlers_def.menu(user[3])
     except Exception:
         bot.send_message(user[3], 'Что-то пошло не так при попытке похода в базу. ')
-        handlers_def.action()
+        handlers_def.menu(user[3])
 
 bot = telebot.TeleBot(config.telebot_token)
 date_of_bd = None
@@ -134,7 +135,7 @@ def callback_message(callback):
                     btn_change4 = types.InlineKeyboardButton('Телефон: ' + list[2], callback_data="NP_" + 'phone' + str(list[5]))
                     btn_change5 = types.InlineKeyboardButton('Почта: ' + list[3], callback_data="NP_" + 'email' + str(list[5]))
                     btn_change6 = types.InlineKeyboardButton('Информация: ' + list[4], callback_data="NP_" + 'information' + str(list[5]))
-                    btn_del = types.InlineKeyboardButton('Удалить запись', callback_data= "NP_" + 'delete' + str(list[5]))
+                    btn_del = types.InlineKeyboardButton('Удалить запись', callback_data= "NP_" + 'delete' + str(list[5]) + '~' + str(list[0]))
                     btn_main = types.InlineKeyboardButton('Вернуться в главное меню <<<', callback_data = "menu")
                     markup3.add(btn_change2).add(btn_change3).add(btn_change4).add(btn_change5).add(btn_change6).add(btn_del).add(btn_main)
                 bot.send_message(callback.message.chat.id, 'Выберите запись для изменения:', reply_markup=markup3)
@@ -150,12 +151,11 @@ def callback_message(callback):
         try:
             connection = psycopg2.connect(dbname=config.db_name, user=config.db_user)
             cur = connection.cursor()
-            bot.send_message(callback.message.chat.id, 'Запись' + list[0] + 'удалена!')
-            cur.execute("DELETE FROM memento.users WHERE id = '%s' " % (callback.data[9:]))
+            cur.execute("DELETE FROM memento.users WHERE id = '%s' " % (callback.data[9:].split('~',1)[0]))
             connection.commit()
             cur.close()
             connection.close()
-            bot.send_message(callback.message.chat.id, 'Запись удалена!')
+            bot.send_message(callback.message.chat.id, 'Запись' + callback.data[9:].split('~',1)[1] + 'удалена!')
             handlers_def.action(callback.message)
         except Exception:
             bot.send_message(callback.message.chat.id, 'Что-то пошло не так')
